@@ -3,10 +3,13 @@
 
 #include "PostProcess/PostProcessInputs.h"
 #include "RenderGraphBuilder.h"
+#include "RenderGraphUtils.h"
+#include "ScreenPass.h"
 #include "SceneView.h"
 #include "SceneRendering.h"
 
 IMPLEMENT_GLOBAL_SHADER(FNRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FNRSMotionVizPS, "/Plugin/NRS/MotionViz.usf", "MainPS", SF_Pixel);
 
 FNRSRecordSceneViewExtension::FNRSRecordSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
@@ -16,7 +19,7 @@ FNRSRecordSceneViewExtension::FNRSRecordSceneViewExtension(const FAutoRegister& 
 void FNRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView, const FPostProcessingInputs& Inputs)
 {
 	const FViewInfo& View = (FViewInfo &)InView;
-
+	FRDGTextureRef SceneColorTexture = (*Inputs.SceneTextures)->SceneColorTexture;
 	FRDGTextureRef SceneDepthTexture = (*Inputs.SceneTextures)->SceneDepthTexture;
 	FRDGTextureRef VelocityTexture = (*Inputs.SceneTextures)->GBufferVelocityTexture;
 
@@ -35,12 +38,31 @@ void FNRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& 
 		);
 
 		MotionVectorTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("NRSRecord_MotionVector"));
-		
 	}
 	else
 	{
 		MotionVectorTexture = GraphBuilder.RegisterExternalTexture(MotionVectorRT);
 	}
+
+	AddMotionGeneration(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, MotionVectorTexture);
+
+	const bool bIsGameView = View.bIsGameView || (View.Family && View.Family->EngineShowFlags.Game);
+	if (bIsGameView)
+	{
+		AddMotionVisualization(GraphBuilder, InView, SceneColorTexture, SceneDepthTexture, MotionVectorTexture);
+	}
+
+	GraphBuilder.QueueTextureExtraction(MotionVectorTexture, &MotionVectorRT);
+}
+
+void FNRSRecordSceneViewExtension::AddMotionGeneration(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef VelocityTexture,
+		FRDGTextureRef MotionVectorTexture)
+{
+	const FViewInfo& View = (FViewInfo &)InView;
 
 	FNRSMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSMotionGenCS::FParameters>();
 	PassParameters->DepthTexture = SceneDepthTexture;
@@ -59,6 +81,40 @@ void FNRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(FRDGBuilder& 
 			FIntVector(SceneDepthTexture->Desc.Extent.X, SceneDepthTexture->Desc.Extent.Y, 1),
 			FIntVector(FNRSMotionGenCS::ThreadgroupSizeX, FNRSMotionGenCS::ThreadgroupSizeY, FNRSMotionGenCS::ThreadgroupSizeZ))
 	);
-	
-	GraphBuilder.QueueTextureExtraction(MotionVectorTexture, &MotionVectorRT);
+}
+
+void FNRSRecordSceneViewExtension::AddMotionVisualization(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& InView,
+	FRDGTextureRef SceneColorTexture,
+	FRDGTextureRef SceneDepthTexture,
+	FRDGTextureRef MotionVectorTexture)
+{
+	const FViewInfo& View = (FViewInfo &)InView;
+
+	const FScreenPassTexture SceneColor(SceneColorTexture, View.ViewRect);
+	const FScreenPassRenderTarget Output(SceneColor, ERenderTargetLoadAction::ELoad);
+	FScreenPassTextureViewport OutputViewport(Output);
+
+	FRDGTextureRef SceneColorCopy = GraphBuilder.CreateTexture(SceneColorTexture->Desc, TEXT("NRSRecord_SceneColorCopy"));
+	AddCopyTexturePass(GraphBuilder, SceneColorTexture, SceneColorCopy);
+
+	FNRSMotionVizPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSMotionVizPS::FParameters>();
+	PassParameters->InputMotion = MotionVectorTexture;
+	PassParameters->InputMotionSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->InputColor = SceneColorCopy;
+	PassParameters->InputColorSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->View = View.ViewUniformBuffer;
+	PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
+
+	TShaderMapRef<FNRSMotionVizPS> PixelShader(View.ShaderMap);
+	AddDrawScreenPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("MotionViz"),
+		FScreenPassViewInfo(InView),
+		OutputViewport,
+		OutputViewport,
+		PixelShader,
+		PassParameters
+	);
 }

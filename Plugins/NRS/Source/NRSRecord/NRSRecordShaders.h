@@ -37,3 +37,24 @@ public:
 		OutEnvironment.SetDefine(TEXT("UNREAL_ENGINE_MINOR_VERSION"), ENGINE_MINOR_VERSION);
 	}
 };
+
+class FNRSMotionVizPS : public FGlobalShader
+{
+public:
+	DECLARE_GLOBAL_SHADER(FNRSMotionVizPS);
+	SHADER_USE_PARAMETER_STRUCT(FNRSMotionVizPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputMotion)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputMotionSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputColor)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputColorSampler)
+		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
+		RENDER_TARGET_BINDING_SLOTS()
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+};

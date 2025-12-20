@@ -14,5 +14,20 @@ public:
 	virtual void PrePostProcessPass_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& InView, const FPostProcessingInputs& Inputs) override;
 
 private:
+	void AddMotionGeneration(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef VelocityTexture,
+		FRDGTextureRef MotionVectorTexture);
+	
+	void AddMotionVisualization(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneColorTexture,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef MotionVectorTexture);
+
+private:
 	TRefCountPtr<IPooledRenderTarget> MotionVectorRT;
 };
