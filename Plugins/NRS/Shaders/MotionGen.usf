@@ -1,0 +1,43 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+Texture2D InputDepth;
+Texture2D InputVelocity;
+RWTexture2D<float2> OutputTexture;
+
+float2 ComputeStaticVelocity(float2 ScreenPos, float DeviceZ)
+{
+	float3 PosN = float3(ScreenPos, DeviceZ);
+	float4 ThisClip = float4(PosN, 1);
+	float4 PrevClip = mul(ThisClip, View.ClipToPrevClip); 
+	float2 PrevScreen = PrevClip.xy / PrevClip.w;
+	return PosN.xy - PrevScreen;
+}
+
+[numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, THREADGROUP_SIZEZ)] 
+void MainCS(uint3 LocalThreadId : SV_GroupThreadID, uint3 WorkGroupId : SV_GroupID, uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint Width = View.ViewSizeAndInvSize.x;
+	uint Height = View.ViewSizeAndInvSize.y;
+
+	if (Width > DispatchThreadId.x && Height > DispatchThreadId.y)
+	{
+		float2 Velocity = 0;
+		float4 EncodedVelocity = InputVelocity[DispatchThreadId.xy + View.ViewRectMin.xy];
+		if ( EncodedVelocity.x > 0.0 )
+		{
+			Velocity = DecodeVelocityFromTexture(EncodedVelocity).xy;
+		}
+		else
+		{
+			float Depth = InputDepth[DispatchThreadId.xy + View.ViewRectMin.xy].x;
+			// This doesn't need the viewport origin as it is a UV, not a pixel coordinate (i.e. it is relative to the origin not (0,0))
+			float2 ViewportUV = (DispatchThreadId.xy + 0.5) * View.ViewSizeAndInvSize.zw;
+			float2 ScreenPos = ViewportUVToScreenPos(ViewportUV);
+
+			Velocity = ComputeStaticVelocity(ScreenPos, Depth).xy;
+		}
+
+		OutputTexture[DispatchThreadId.xy] = Velocity * float2(0.5, 0.5);
+	}
+}

@@ -15,6 +15,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "NRS",
+			"Enabled": true
+		},
+		{
 			"Name": "ControlRig",
 			"Enabled": true
 		},
