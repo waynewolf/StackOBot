@@ -1,0 +1,17 @@
+.ignore
+/.vscode
+/.vs
+/Binaries
+/Build
+/Content
+/DerivedDataCache
+/Intermediate
+/Saved
+Plugins/*/Binaries
+Plugins/*/Build
+Plugins/*/Content
+Plugins/*/DerivedDataCache
+Plugins/*/Intermediate
+Plugins/*/Saved
+*.sln
+*.code-workspace
