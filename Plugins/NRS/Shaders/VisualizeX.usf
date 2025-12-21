@@ -1,0 +1,11 @@
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ScreenPass.ush"
+
+Texture2D InputTexture;
+SamplerState InputTextureSampler;
+
+float4 MainPS(FScreenVertexOutput In) : SV_Target0
+{
+	float4 Translucency = InputTexture.SampleLevel(InputTextureSampler, In.UV, 0);
+	return Translucency;
+}
