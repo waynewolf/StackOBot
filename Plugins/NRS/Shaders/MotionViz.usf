@@ -36,7 +36,7 @@ float4 MainPS(FScreenVertexOutput In) : SV_Target0
 	float MotionMag = length(AvgMotion);
 
 	float2 Dir = (MotionMag > 1e-4f) ? (AvgMotion / MotionMag) : float2(0.0f, -1.0f);
-	float ArrowLen = lerp(2.0f, 6.0f, saturate(MotionMag * 4.0f));
+	float ArrowLen = lerp(4.0f, 12.0f, saturate(sqrt(MotionMag) * 4.0f));
 
 	float2 CellPos = PixelPos - CellBase;
 	float2 Center = float2(8.0f, 8.0f);
@@ -45,14 +45,14 @@ float4 MainPS(FScreenVertexOutput In) : SV_Target0
 	float2 Tail = Center - Dir * 1.5f;
 
 	float LineDist = DistanceToSegment(CellPos, Tail, Tip);
-	float LineMask = 1.0f - smoothstep(1.0f, 1.5f, LineDist);
+	float LineMask = 1.0f - smoothstep(0.5f, 1.0f, LineDist);
 
 	float2 Left = Tip - Dir * 1.5f + float2(-Dir.y, Dir.x) * 2.0f;
 	float2 Right = Tip - Dir * 1.5f + float2(Dir.y, -Dir.x) * 2.0f;
-	float HeadMask = 1.0f - smoothstep(1.0f, 1.5f, min(DistanceToSegment(CellPos, Tip, Left), DistanceToSegment(CellPos, Tip, Right)));
+	float HeadMask = 1.0f - smoothstep(0.5f, 1.0f, min(DistanceToSegment(CellPos, Tip, Left), DistanceToSegment(CellPos, Tip, Right)));
 
 	float ArrowMask = saturate(LineMask + HeadMask) * saturate(MotionMag * 10.0f);
-	float3 ArrowColor = float3(1.0f, 0.0f, 0.2f);
+	float3 ArrowColor = float3(1.0f, 0.0f, 0.0f);
 	float3 SceneColor = InputColor.SampleLevel(InputColorSampler, In.UV, 0).rgb;
 	float3 OutColor = lerp(SceneColor, ArrowColor, ArrowMask);
 
