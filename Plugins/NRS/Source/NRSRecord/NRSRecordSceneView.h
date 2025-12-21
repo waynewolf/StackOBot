@@ -1,10 +1,10 @@
 #pragma once
 
 #include "SceneViewExtension.h"
+#include "PostProcess/PostProcessInputs.h"
 
 class FRDGBuilder;
 class FSceneView;
-struct FPostProcessingInputs;
 
 class FNRSRecordSceneViewExtension : public FSceneViewExtensionBase
 {
@@ -42,12 +42,25 @@ private:
 		FRDGTextureRef SceneDepthTexture,
 		FRDGTextureRef MotionVectorTexture);
 
-	void AddTranslucencyVisualization(
+	void AddXVisualization(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		FRDGTextureRef TranslucencyTexture,
 		FRDGTextureRef OutputTexture);
+	
+	void RecordBuffers(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneColorTexture,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef MotionVectorTexture,
+		FRDGTextureRef TranslucencyTexture,
+		FRDGTextureRef GBufferATexture,
+		FRDGTextureRef GBufferBTexture,
+		FRDGTextureRef GBufferCTexture);
 
 private:
+	FPostProcessingInputs CachedPPInputs;
+	FRDGTextureRef CachedMotionVectorTexture;
 	TRefCountPtr<IPooledRenderTarget> MotionVectorRT;
 };
