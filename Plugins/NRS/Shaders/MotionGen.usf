@@ -31,13 +31,13 @@ void MainCS(uint3 LocalThreadId : SV_GroupThreadID, uint3 WorkGroupId : SV_Group
 		else
 		{
 			float Depth = InputDepth[DispatchThreadId.xy + View.ViewRectMin.xy].x;
-			// This doesn't need the viewport origin as it is a UV, not a pixel coordinate (i.e. it is relative to the origin not (0,0))
 			float2 ViewportUV = (DispatchThreadId.xy + 0.5) * View.ViewSizeAndInvSize.zw;
 			float2 ScreenPos = ViewportUVToScreenPos(ViewportUV);
 
 			Velocity = ComputeStaticVelocity(ScreenPos, Depth).xy;
 		}
 
-		OutputTexture[DispatchThreadId.xy] = Velocity * float2(0.5, 0.5);
+		uint2 OutPixel = DispatchThreadId.xy + View.ViewRectMin.xy;
+		OutputTexture[OutPixel] = Velocity * float2(0.5, 0.5);
 	}
 }

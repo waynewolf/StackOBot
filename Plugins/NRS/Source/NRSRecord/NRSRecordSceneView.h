@@ -18,7 +18,7 @@ private:
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		FRDGTextureRef SceneDepthTexture,
-		FRDGTextureRef VelocityTexture,
+		FRDGTextureRef SceneVelocityTexture,
 		FRDGTextureRef MotionVectorTexture);
 	
 	void AddMotionVisualization(

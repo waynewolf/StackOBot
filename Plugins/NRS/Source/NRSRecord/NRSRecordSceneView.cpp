@@ -59,17 +59,26 @@ void FNRSRecordSceneViewExtension::AddMotionGeneration(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		FRDGTextureRef SceneDepthTexture,
-		FRDGTextureRef VelocityTexture,
+		FRDGTextureRef SceneVelocityTexture,
 		FRDGTextureRef MotionVectorTexture)
 {
 	const FViewInfo& View = (FViewInfo &)InView;
+	const FIntPoint ViewSize = View.ViewRect.Size();
+
+	UE_LOG(LogTemp, Log, TEXT("ViewRect: %d x %d, Min: %d x %d"), ViewSize.X, ViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
+
+	FRDGTextureSRVRef SceneDepthSRV = GraphBuilder.CreateSRV(SceneDepthTexture);
+	FRDGTextureSRVRef SceneVelocitySRV = GraphBuilder.CreateSRV(SceneVelocityTexture);
+	FRDGTextureUAVRef MotionVectorUAV = GraphBuilder.CreateUAV(MotionVectorTexture);
+
+	AddClearUAVPass(GraphBuilder, MotionVectorUAV, FVector4(0, 0, 0, 0));
 
 	FNRSMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSMotionGenCS::FParameters>();
 	PassParameters->DepthTexture = SceneDepthTexture;
-	PassParameters->InputDepth = GraphBuilder.CreateSRV(SceneDepthTexture);
-	PassParameters->InputVelocity = GraphBuilder.CreateSRV(VelocityTexture);
+	PassParameters->InputDepth = SceneDepthSRV;
+	PassParameters->InputVelocity = SceneVelocitySRV;
 	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->OutputTexture = GraphBuilder.CreateUAV(MotionVectorTexture);
+	PassParameters->OutputTexture = MotionVectorUAV;
 
 	TShaderMapRef<FNRSMotionGenCS> ComputeShader(View.ShaderMap);
 	FComputeShaderUtils::AddPass(
@@ -78,7 +87,7 @@ void FNRSRecordSceneViewExtension::AddMotionGeneration(
 		ComputeShader,
 		PassParameters,
 		FComputeShaderUtils::GetGroupCount(
-			FIntVector(SceneDepthTexture->Desc.Extent.X, SceneDepthTexture->Desc.Extent.Y, 1),
+			FIntVector(ViewSize.X, ViewSize.Y, 1),
 			FIntVector(FNRSMotionGenCS::ThreadgroupSizeX, FNRSMotionGenCS::ThreadgroupSizeY, FNRSMotionGenCS::ThreadgroupSizeZ))
 	);
 }
