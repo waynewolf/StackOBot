@@ -9,6 +9,75 @@
 #include "SceneRendering.h"
 #include "ScenePrivate.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/FileManager.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "PixelFormat.h"
+#include "RHICommandList.h"
+#include "RHIGPUReadback.h"
+
+namespace
+{
+	struct NRSReadbackState
+	{
+		TUniquePtr<FRHIGPUTextureReadback> Readback;
+		FIntPoint Size = FIntPoint::ZeroValue;
+		EPixelFormat Format = PF_Unknown;
+		uint64 FrameId = 0;
+
+		explicit NRSReadbackState(const TCHAR* Name)
+			: Readback(MakeUnique<FRHIGPUTextureReadback>(Name))
+		{
+		}
+	};
+
+	static uint64 GNRSReadbackFrameId = 0;
+
+	static void SaveReadbackIfReady(NRSReadbackState& State, const FString& Label)
+	{
+		if (!State.Readback || !State.Readback->IsReady())
+		{
+			return;
+		}
+
+		int32 RowPitchInPixels = 0;
+		void* Data = State.Readback->Lock(RowPitchInPixels);
+		if (!Data)
+		{
+			State.Readback->Unlock();
+			return;
+		}
+
+		const int32 BytesPerPixel = GPixelFormats[State.Format].BlockBytes;
+		if (BytesPerPixel <= 0 || State.Size.X <= 0 || State.Size.Y <= 0)
+		{
+			State.Readback->Unlock();
+			return;
+		}
+		const int32 RowBytes = State.Size.X * BytesPerPixel;
+		TArray<uint8> Output;
+		Output.SetNumUninitialized(State.Size.X * State.Size.Y * BytesPerPixel);
+
+		const uint8* Src = static_cast<const uint8*>(Data);
+		uint8* Dst = Output.GetData();
+		for (int32 Y = 0; Y < State.Size.Y; ++Y)
+		{
+			FMemory::Memcpy(Dst + Y * RowBytes, Src + Y * RowPitchInPixels * BytesPerPixel, RowBytes);
+		}
+
+		State.Readback->Unlock();
+
+		const FString OutputDir = FPaths::ProjectSavedDir() / TEXT("NRSRecord");
+		IFileManager::Get().MakeDirectory(*OutputDir, true);
+		const FString OutputPath = OutputDir / FString::Printf(
+			TEXT("%s_%llu_%dx%d.bin"),
+			*Label,
+			State.FrameId,
+			State.Size.X,
+			State.Size.Y);
+		FFileHelper::SaveArrayToFile(Output, *OutputPath);
+	}
+}
 
 IMPLEMENT_GLOBAL_SHADER(FNRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FNRSMotionVizPS, "/Plugin/NRS/MotionViz.usf", "MainPS", SF_Pixel);
@@ -260,6 +329,65 @@ void FNRSRecordSceneViewExtension::RecordBuffers(
 	FRDGTextureRef GBufferCTexture)
 {
 	const FViewInfo& View = (FViewInfo &)InView;
+
+	static NRSReadbackState SceneColorReadback(TEXT("NRS_SceneColorReadback"));
+	//static NRSReadbackState SceneDepthReadback(TEXT("NRS_SceneDepthReadback"));
+	//static NRSReadbackState MotionReadback(TEXT("NRS_MotionReadback"));
+	static NRSReadbackState GBufferAReadback(TEXT("NRS_GBufferAReadback"));
+	static NRSReadbackState GBufferBReadback(TEXT("NRS_GBufferBReadback"));
+	static NRSReadbackState GBufferCReadback(TEXT("NRS_GBufferCReadback"));
+
+	SaveReadbackIfReady(SceneColorReadback, TEXT("SceneColor"));
+	//SaveReadbackIfReady(SceneDepthReadback, TEXT("SceneDepth"));
+	//SaveReadbackIfReady(MotionReadback, TEXT("Motion"));
+	SaveReadbackIfReady(GBufferAReadback, TEXT("GBufferA"));
+	SaveReadbackIfReady(GBufferBReadback, TEXT("GBufferB"));
+	SaveReadbackIfReady(GBufferCReadback, TEXT("GBufferC"));
+
+	++GNRSReadbackFrameId;
+
+	if (SceneColorTexture)
+	{
+		SceneColorReadback.Size = SceneColorTexture->Desc.Extent;
+		SceneColorReadback.Format = SceneColorTexture->Desc.Format;
+		SceneColorReadback.FrameId = GNRSReadbackFrameId;
+		AddEnqueueCopyPass(GraphBuilder, SceneColorReadback.Readback.Get(), SceneColorTexture);
+	}
+	// if (SceneDepthTexture)
+	// {
+	// 	SceneDepthReadback.Size = SceneDepthTexture->Desc.Extent;
+	// 	SceneDepthReadback.Format = SceneDepthTexture->Desc.Format;
+	// 	SceneDepthReadback.FrameId = GNRSReadbackFrameId;
+	// 	AddEnqueueCopyPass(GraphBuilder, SceneDepthReadback.Readback.Get(), SceneDepthTexture);
+	// }
+	// if (MotionVectorTexture)
+	// {
+	// 	MotionReadback.Size = MotionVectorTexture->Desc.Extent;
+	// 	MotionReadback.Format = MotionVectorTexture->Desc.Format;
+	// 	MotionReadback.FrameId = GNRSReadbackFrameId;
+	// 	AddEnqueueCopyPass(GraphBuilder, MotionReadback.Readback.Get(), MotionVectorTexture);
+	// }
+	if (GBufferATexture)
+	{
+		GBufferAReadback.Size = GBufferATexture->Desc.Extent;
+		GBufferAReadback.Format = GBufferATexture->Desc.Format;
+		GBufferAReadback.FrameId = GNRSReadbackFrameId;
+		AddEnqueueCopyPass(GraphBuilder, GBufferAReadback.Readback.Get(), GBufferATexture);
+	}
+	if (GBufferBTexture)
+	{
+		GBufferBReadback.Size = GBufferBTexture->Desc.Extent;
+		GBufferBReadback.Format = GBufferBTexture->Desc.Format;
+		GBufferBReadback.FrameId = GNRSReadbackFrameId;
+		AddEnqueueCopyPass(GraphBuilder, GBufferBReadback.Readback.Get(), GBufferBTexture);
+	}
+	if (GBufferCTexture)
+	{
+		GBufferCReadback.Size = GBufferCTexture->Desc.Extent;
+		GBufferCReadback.Format = GBufferCTexture->Desc.Format;
+		GBufferCReadback.FrameId = GNRSReadbackFrameId;
+		AddEnqueueCopyPass(GraphBuilder, GBufferCReadback.Readback.Get(), GBufferCTexture);
+	}
 
 	const FScreenPassTexture OutputScreenPassTexture(SceneColorTexture);
 	const FScreenPassRenderTarget OutputRT(OutputScreenPassTexture, ERenderTargetLoadAction::ENoAction);
