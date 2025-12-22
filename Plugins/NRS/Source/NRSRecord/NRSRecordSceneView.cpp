@@ -79,9 +79,9 @@ namespace
 	}
 }
 
-IMPLEMENT_GLOBAL_SHADER(FNRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(FNRSMotionVizPS, "/Plugin/NRS/MotionViz.usf", "MainPS", SF_Pixel);
-IMPLEMENT_GLOBAL_SHADER(FNRSVisualizeXPS, "/Plugin/NRS/VisualizeX.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(NRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(NRSMotionVizPS, "/Plugin/NRS/MotionViz.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(NRSVisualizeXPS, "/Plugin/NRS/VisualizeX.usf", "MainPS", SF_Pixel);
 
 static TAutoConsoleVariable<int32> CVarNRSRecordBuffers(
 	TEXT("r.NRS.RecordBuffers"),
@@ -89,12 +89,12 @@ static TAutoConsoleVariable<int32> CVarNRSRecordBuffers(
 	TEXT("Enable NRS RecordBuffers pass.\n0: off, 1: on"),
 	ECVF_Default);
 
-FNRSRecordSceneViewExtension::FNRSRecordSceneViewExtension(const FAutoRegister& AutoRegister)
+NRSRecordSceneViewExtension::NRSRecordSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister)
 {
 }
 
-void FNRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
+void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	const FPostProcessingInputs& Inputs)
@@ -159,7 +159,7 @@ void FNRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 	CachedPPInputs = Inputs;
 }
 
-void FNRSRecordSceneViewExtension::SubscribeToPostProcessingPass(
+void NRSRecordSceneViewExtension::SubscribeToPostProcessingPass(
 	EPostProcessingPass Pass,
 	const FSceneView& InView,
 	FPostProcessingPassDelegateArray& InOutPassCallbacks,
@@ -173,11 +173,11 @@ void FNRSRecordSceneViewExtension::SubscribeToPostProcessingPass(
 	if (Pass == EPostProcessingPass::BeforeDOF && bIsPassEnabled && bIsGameView)
 	{
 		UE_LOG(LogTemp, Log, TEXT("BeforeDOF"));
-		InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &FNRSRecordSceneViewExtension::InPostProcessChain));
+		InOutPassCallbacks.Add(FPostProcessingPassDelegate::CreateRaw(this, &NRSRecordSceneViewExtension::InPostProcessChain));
 	}
 }
 
-FScreenPassTexture FNRSRecordSceneViewExtension::InPostProcessChain(
+FScreenPassTexture NRSRecordSceneViewExtension::InPostProcessChain(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& View,
 	const FPostProcessMaterialInputs& Inputs)
@@ -213,7 +213,7 @@ FScreenPassTexture FNRSRecordSceneViewExtension::InPostProcessChain(
 	return SceneColorScreenPassTexture;
 }
 
-void FNRSRecordSceneViewExtension::AddMotionGeneration(
+void NRSRecordSceneViewExtension::AddMotionGeneration(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		FRDGTextureRef SceneDepthTexture,
@@ -231,14 +231,14 @@ void FNRSRecordSceneViewExtension::AddMotionGeneration(
 
 	AddClearUAVPass(GraphBuilder, MotionVectorUAV, FVector4(0, 0, 0, 0));
 
-	FNRSMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSMotionGenCS::FParameters>();
+	NRSMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSMotionGenCS::FParameters>();
 	PassParameters->DepthTexture = SceneDepthTexture;
 	PassParameters->InputDepth = SceneDepthSRV;
 	PassParameters->InputVelocity = SceneVelocitySRV;
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->OutputTexture = MotionVectorUAV;
 
-	TShaderMapRef<FNRSMotionGenCS> ComputeShader(View.ShaderMap);
+	TShaderMapRef<NRSMotionGenCS> ComputeShader(View.ShaderMap);
 	FComputeShaderUtils::AddPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("MotionGen"),
@@ -246,11 +246,11 @@ void FNRSRecordSceneViewExtension::AddMotionGeneration(
 		PassParameters,
 		FComputeShaderUtils::GetGroupCount(
 			FIntVector(ViewSize.X, ViewSize.Y, 1),
-			FIntVector(FNRSMotionGenCS::ThreadgroupSizeX, FNRSMotionGenCS::ThreadgroupSizeY, FNRSMotionGenCS::ThreadgroupSizeZ))
+			FIntVector(NRSMotionGenCS::ThreadgroupSizeX, NRSMotionGenCS::ThreadgroupSizeY, NRSMotionGenCS::ThreadgroupSizeZ))
 	);
 }
 
-void FNRSRecordSceneViewExtension::AddMotionVisualization(
+void NRSRecordSceneViewExtension::AddMotionVisualization(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	FRDGTextureRef SceneColorTexture,
@@ -266,7 +266,7 @@ void FNRSRecordSceneViewExtension::AddMotionVisualization(
 	FRDGTextureRef SceneColorCopy = GraphBuilder.CreateTexture(SceneColorTexture->Desc, TEXT("NRSRecord_SceneColorCopy"));
 	AddCopyTexturePass(GraphBuilder, SceneColorTexture, SceneColorCopy);
 
-	FNRSMotionVizPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSMotionVizPS::FParameters>();
+	NRSMotionVizPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSMotionVizPS::FParameters>();
 	PassParameters->InputMotion = MotionVectorTexture;
 	PassParameters->InputMotionSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->InputColor = SceneColorCopy;
@@ -274,7 +274,7 @@ void FNRSRecordSceneViewExtension::AddMotionVisualization(
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
-	TShaderMapRef<FNRSMotionVizPS> PixelShader(View.ShaderMap);
+	TShaderMapRef<NRSMotionVizPS> PixelShader(View.ShaderMap);
 	AddDrawScreenPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("MotionViz"),
@@ -286,7 +286,7 @@ void FNRSRecordSceneViewExtension::AddMotionVisualization(
 	);
 }
 
-void FNRSRecordSceneViewExtension::AddXVisualization(
+void NRSRecordSceneViewExtension::AddXVisualization(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	FRDGTextureRef TranslucencyTexture,
@@ -300,12 +300,12 @@ void FNRSRecordSceneViewExtension::AddXVisualization(
 	const FScreenPassRenderTarget OutputRT(OutputScreenPassTexture, ERenderTargetLoadAction::ENoAction);
 	FScreenPassTextureViewport OutputViewport(OutputRT);
 
-	FNRSVisualizeXPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSVisualizeXPS::FParameters>();
+	NRSVisualizeXPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSVisualizeXPS::FParameters>();
 	PassParameters->InputTexture = TranslucencyScreenPassTexture.Texture;
 	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->RenderTargets[0] = OutputRT.GetRenderTargetBinding();
 
-	TShaderMapRef<FNRSVisualizeXPS> PixelShader(View.ShaderMap);
+	TShaderMapRef<NRSVisualizeXPS> PixelShader(View.ShaderMap);
 	AddDrawScreenPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("VisualizeX"),
@@ -317,7 +317,7 @@ void FNRSRecordSceneViewExtension::AddXVisualization(
 	);
 }
 
-void FNRSRecordSceneViewExtension::RecordBuffers(
+void NRSRecordSceneViewExtension::RecordBuffers(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	FRDGTextureRef SceneColorTexture,
@@ -393,12 +393,12 @@ void FNRSRecordSceneViewExtension::RecordBuffers(
 	const FScreenPassRenderTarget OutputRT(OutputScreenPassTexture, ERenderTargetLoadAction::ENoAction);
 	FScreenPassTextureViewport OutputViewport(OutputRT);
 
-	FNRSVisualizeXPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FNRSVisualizeXPS::FParameters>();
+	NRSVisualizeXPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSVisualizeXPS::FParameters>();
 	PassParameters->InputTexture = GBufferATexture;
 	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->RenderTargets[0] = OutputRT.GetRenderTargetBinding();
 
-	TShaderMapRef<FNRSVisualizeXPS> PixelShader(View.ShaderMap);
+	TShaderMapRef<NRSVisualizeXPS> PixelShader(View.ShaderMap);
 	AddDrawScreenPass(
 		GraphBuilder,
 		RDG_EVENT_NAME("RecordBuffers"),

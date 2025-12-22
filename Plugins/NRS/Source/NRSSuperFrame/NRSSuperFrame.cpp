@@ -1,14 +1,14 @@
 #include "NRSSuperFrame.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_MODULE(FNRSSuperFrameModule, NRSSuperFrame)
+IMPLEMENT_MODULE(NRSSuperFrameModule, NRSSuperFrame)
 
-void FNRSSuperFrameModule::StartupModule()
+void NRSSuperFrameModule::StartupModule()
 {
     UE_LOG(LogTemp, Log, TEXT("NRSSuperFrame module has started."));
 }
 
-void FNRSSuperFrameModule::ShutdownModule()
+void NRSSuperFrameModule::ShutdownModule()
 {
     UE_LOG(LogTemp, Log, TEXT("NRSSuperFrame module is shutting down."));
 }

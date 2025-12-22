@@ -3,9 +3,9 @@
 #include "Modules/ModuleManager.h"
 #include "ShaderCore.h"
 
-IMPLEMENT_MODULE(FNRSRecordModule, NRSRecord)
+IMPLEMENT_MODULE(NRSRecordModule, NRSRecord)
 
-void FNRSRecordModule::StartupModule()
+void NRSRecordModule::StartupModule()
 {
 	const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("NRS"));
 	if (Plugin.IsValid())
@@ -16,17 +16,17 @@ void FNRSRecordModule::StartupModule()
 
 	if (GEngine)
 	{
-		SceneView = FSceneViewExtensions::NewExtension<FNRSRecordSceneViewExtension>();
+		SceneView = FSceneViewExtensions::NewExtension<NRSRecordSceneViewExtension>();
 	}
 	else
 	{
-		PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddRaw(this, &FNRSRecordModule::HandlePostEngineInit);
+		PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddRaw(this, &NRSRecordModule::HandlePostEngineInit);
 	}
 
 	UE_LOG(LogTemp, Log, TEXT("NRSRecord module has started."));
 }
 
-void FNRSRecordModule::ShutdownModule()
+void NRSRecordModule::ShutdownModule()
 {
 	UE_LOG(LogTemp, Log, TEXT("NRSRecord module is shutting down."));
 
@@ -39,11 +39,11 @@ void FNRSRecordModule::ShutdownModule()
 	SceneView.Reset();
 }
 
-void FNRSRecordModule::HandlePostEngineInit()
+void NRSRecordModule::HandlePostEngineInit()
 {
 	UE_LOG(LogTemp, Warning, TEXT("HandlePostEngineInit"));
 
 	PostEngineInitHandle.Reset();
 
-	SceneView = FSceneViewExtensions::NewExtension<FNRSRecordSceneViewExtension>();
+	SceneView = FSceneViewExtensions::NewExtension<NRSRecordSceneViewExtension>();
 }

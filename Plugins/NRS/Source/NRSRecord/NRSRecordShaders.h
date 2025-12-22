@@ -5,15 +5,15 @@
 #include "Math/Vector4.h"
 #include "ShaderParameterStruct.h"
 
-class FNRSMotionGenCS : public FGlobalShader
+class NRSMotionGenCS : public FGlobalShader
 {
 public:
 	static const int ThreadgroupSizeX = 8;
 	static const int ThreadgroupSizeY = 8;
 	static const int ThreadgroupSizeZ = 1;
 
-	DECLARE_GLOBAL_SHADER(FNRSMotionGenCS);
-	SHADER_USE_PARAMETER_STRUCT(FNRSMotionGenCS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(NRSMotionGenCS);
+	SHADER_USE_PARAMETER_STRUCT(NRSMotionGenCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVCompute)
@@ -38,11 +38,11 @@ public:
 	}
 };
 
-class FNRSMotionVizPS : public FGlobalShader
+class NRSMotionVizPS : public FGlobalShader
 {
 public:
-	DECLARE_GLOBAL_SHADER(FNRSMotionVizPS);
-	SHADER_USE_PARAMETER_STRUCT(FNRSMotionVizPS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(NRSMotionVizPS);
+	SHADER_USE_PARAMETER_STRUCT(NRSMotionVizPS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputMotion)
@@ -59,11 +59,11 @@ public:
 	}
 };
 
-class FNRSVisualizeXPS : public FGlobalShader
+class NRSVisualizeXPS : public FGlobalShader
 {
 public:
-	DECLARE_GLOBAL_SHADER(FNRSVisualizeXPS);
-	SHADER_USE_PARAMETER_STRUCT(FNRSVisualizeXPS, FGlobalShader);
+	DECLARE_GLOBAL_SHADER(NRSVisualizeXPS);
+	SHADER_USE_PARAMETER_STRUCT(NRSVisualizeXPS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)

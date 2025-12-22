@@ -6,10 +6,10 @@
 class FRDGBuilder;
 class FSceneView;
 
-class FNRSRecordSceneViewExtension : public FSceneViewExtensionBase
+class NRSRecordSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
-	explicit FNRSRecordSceneViewExtension(const FAutoRegister& AutoRegister);
+	explicit NRSRecordSceneViewExtension(const FAutoRegister& AutoRegister);
 
 	virtual void PrePostProcessPass_RenderThread(
 		FRDGBuilder& GraphBuilder,

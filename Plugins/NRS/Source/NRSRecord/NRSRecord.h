@@ -5,8 +5,8 @@
 #include "Misc/CoreDelegates.h"
 #include "NRSRecordSceneView.h"
 
-class FNRSRecordSceneViewExtension;
-class FNRSRecordModule : public IModuleInterface
+class NRSRecordSceneViewExtension;
+class NRSRecordModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;
@@ -16,6 +16,6 @@ private:
 	void HandlePostEngineInit();
 
 private:
-	TSharedPtr<FNRSRecordSceneViewExtension, ESPMode::ThreadSafe> SceneView;
+	TSharedPtr<NRSRecordSceneViewExtension, ESPMode::ThreadSafe> SceneView;
 	FDelegateHandle PostEngineInitHandle;
 };

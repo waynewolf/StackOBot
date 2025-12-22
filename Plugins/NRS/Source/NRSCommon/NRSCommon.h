@@ -2,7 +2,7 @@
 
 #include "Modules/ModuleManager.h"
 
-class FNRSCommonModule : public IModuleInterface
+class NRSCommonModule : public IModuleInterface
 {
 public:
 	virtual void StartupModule() override;

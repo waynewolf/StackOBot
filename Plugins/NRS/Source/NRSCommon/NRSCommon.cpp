@@ -1,14 +1,14 @@
 #include "NRSCommon.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_MODULE(FNRSCommonModule, NRSCommon)
+IMPLEMENT_MODULE(NRSCommonModule, NRSCommon)
 
-void FNRSCommonModule::StartupModule()
+void NRSCommonModule::StartupModule()
 {
     UE_LOG(LogTemp, Log, TEXT("NRSCommon module has started."));
 }
 
-void FNRSCommonModule::ShutdownModule()
+void NRSCommonModule::ShutdownModule()
 {
     UE_LOG(LogTemp, Log, TEXT("NRSCommon module is shutting down."));
 }
