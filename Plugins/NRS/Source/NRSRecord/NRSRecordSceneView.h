@@ -1,11 +1,31 @@
 #pragma once
 
 #include "SceneViewExtension.h"
-#include "PostProcess/PostProcessInputs.h"
+
+struct NRSReadbackState
+{
+	TUniquePtr<FRHIGPUTextureReadback> Readback;
+	FIntPoint Size = FIntPoint::ZeroValue;
+	EPixelFormat Format = PF_Unknown;
+	uint64 FrameId = 0;
+	bool bPendingCopy = false;
+	bool bNeedsReset = false;
+	FIntPoint PendingSize = FIntPoint::ZeroValue;
+	EPixelFormat PendingFormat = PF_Unknown;
+
+	explicit NRSReadbackState(const TCHAR* Name)
+		: Readback(MakeUnique<FRHIGPUTextureReadback>(Name))
+		, Name(Name)
+	{
+	}
+
+	const TCHAR* Name = nullptr;
+};
 
 class FRDGBuilder;
 class FSceneView;
-
+struct FPostProcessMaterialInputs;
+struct FPostProcessingInputs;
 class NRSRecordSceneViewExtension : public FSceneViewExtensionBase
 {
 public:
@@ -47,20 +67,31 @@ private:
 		const FSceneView& InView,
 		FRDGTextureRef TranslucencyTexture,
 		FRDGTextureRef OutputTexture);
-	
-	void RecordBuffers(
+
+	void RecordDepthBuffer(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
-		FRDGTextureRef SceneColorTexture,
-		FRDGTextureRef SceneDepthTexture,
-		FRDGTextureRef MotionVectorTexture,
-		FRDGTextureRef TranslucencyTexture,
-		FRDGTextureRef GBufferATexture,
-		FRDGTextureRef GBufferBTexture,
-		FRDGTextureRef GBufferCTexture);
+		FRDGTextureRef InTexture,
+		NRSReadbackState& OutReadbackState,
+		const FString& Label);
+
+	void RecordBuffer(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef InTexture,
+		NRSReadbackState& OutReadbackState,
+		const FString& Label);
+
+	static bool SaveReadbackIfReady(NRSReadbackState& State, const FString& Label);
 
 private:
-	FPostProcessingInputs CachedPPInputs;
-	FRDGTextureRef CachedMotionVectorTexture;
+	static uint64 NRSReadbackFrameId;
+
 	TRefCountPtr<IPooledRenderTarget> MotionVectorRT;
+
+	NRSReadbackState SceneColorReadback;
+	NRSReadbackState SceneDepthReadback;
+	NRSReadbackState MotionVectorReadback;
+	NRSReadbackState TranslucencyReadback;
+	NRSReadbackState GBufferCReadback;
 };

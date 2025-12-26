@@ -23,9 +23,11 @@ void MainCS(uint3 LocalThreadId : SV_GroupThreadID, uint3 WorkGroupId : SV_Group
 	if (Width > DispatchThreadId.x && Height > DispatchThreadId.y)
 	{
 		float2 Velocity = 0;
+		// Unreal EncodedVelocity: [0, 1]
 		float4 EncodedVelocity = InputVelocity[DispatchThreadId.xy + View.ViewRectMin.xy];
 		if ( EncodedVelocity.x > 0.0 )
 		{
+			// Unreal Velocity support: [-2, 2]
 			Velocity = DecodeVelocityFromTexture(EncodedVelocity).xy;
 		}
 		else
@@ -38,6 +40,7 @@ void MainCS(uint3 LocalThreadId : SV_GroupThreadID, uint3 WorkGroupId : SV_Group
 		}
 
 		uint2 OutPixel = DispatchThreadId.xy + View.ViewRectMin.xy;
+		// to SNORM: [-1, 1]
 		OutputTexture[OutPixel] = Velocity * float2(0.5, 0.5);
 	}
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GlobalShader.h"
+#include "Math/IntPoint.h"
 #include "Math/Vector2D.h"
 #include "Math/Vector4.h"
 #include "ShaderParameterStruct.h"
@@ -35,6 +36,36 @@ public:
 		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
 		OutEnvironment.SetDefine(TEXT("UNREAL_ENGINE_MAJOR_VERSION"), ENGINE_MAJOR_VERSION);
 		OutEnvironment.SetDefine(TEXT("UNREAL_ENGINE_MINOR_VERSION"), ENGINE_MINOR_VERSION);
+	}
+};
+
+class NRSDepthToFloatCS : public FGlobalShader
+{
+public:
+	static const int ThreadgroupSizeX = 8;
+	static const int ThreadgroupSizeY = 8;
+	static const int ThreadgroupSizeZ = 1;
+
+	DECLARE_GLOBAL_SHADER(NRSDepthToFloatCS);
+	SHADER_USE_PARAMETER_STRUCT(NRSDepthToFloatCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		RDG_TEXTURE_ACCESS(DepthTexture, ERHIAccess::SRVCompute)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputDepth)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, OutputDepth)
+		SHADER_PARAMETER(FIntPoint, TextureSize)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM5);
+	}
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEX"), ThreadgroupSizeX);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEY"), ThreadgroupSizeY);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZEZ"), ThreadgroupSizeZ);
+		OutEnvironment.SetDefine(TEXT("COMPUTE_SHADER"), 1);
 	}
 };
 
