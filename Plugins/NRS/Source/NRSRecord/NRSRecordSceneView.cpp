@@ -27,19 +27,31 @@ static TAutoConsoleVariable<int32> CVarNRSVisualizeX(
 	TEXT("r.NRS.VisualizeX"),
 	0,
 	TEXT("Enable NRS VisualizeX pass.\n0: off, 1: on"),
-	ECVF_Default);
+	ECVF_Default | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarNRSRecordBasic(
+	TEXT("r.NRS.RecordBasic"),
+	0,
+	TEXT("Enable NRS RecordBasic\n0: off, 1: on"),
+	ECVF_Default | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarNRSRecordMotion(
 	TEXT("r.NRS.RecordMotion"),
 	0,
 	TEXT("Enable NRS RecordMotion\n0: off, 1: on"),
-	ECVF_Default);
+	ECVF_Default | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarNRSRecordTranslucency(
 	TEXT("r.NRS.RecordTranslucency"),
 	0,
 	TEXT("Enable NRS RecordTranslucency\n0: off, 1: on"),
-	ECVF_Default);
+	ECVF_Default | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarNRSRecordAll(
+	TEXT("r.NRS.RecordAll"),
+	0,
+	TEXT("Enable NRS RecordAll pass.\n0: off, 1: on"),
+	ECVF_Default | ECVF_RenderThreadSafe);
 
 uint64 NRSRecordSceneViewExtension::NRSReadbackFrameId = 0;
 
@@ -64,9 +76,12 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 		return;
 	}
 
-	NRSReadbackFrameId++;
-
 	const FViewInfo& View = (FViewInfo &)InView;
+	ViewSize = View.ViewRect.Size();
+	UE_LOG(LogTemp, Log, TEXT("Game ViewRect: %d x %d, Min: %d x %d"), ViewSize.X, ViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
+
+	NRSReadbackFrameId++;
+	
 	FRDGTextureRef SceneColorTexture = (*Inputs.SceneTextures)->SceneColorTexture;
 	FRDGTextureRef SceneDepthTexture = (*Inputs.SceneTextures)->SceneDepthTexture;
 	FRDGTextureRef VelocityTexture = (*Inputs.SceneTextures)->GBufferVelocityTexture;
@@ -94,15 +109,18 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 
 	AddMotionGeneration(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, MotionVectorTexture);
 
-	RecordBuffer(GraphBuilder, InView, SceneColorTexture, SceneColorReadback, TEXT("SceneColor"));
-	RecordDepthBuffer(GraphBuilder, InView, SceneDepthTexture, SceneDepthReadback, TEXT("SceneDepth"));
+	if (CVarNRSRecordBasic.GetValueOnAnyThread() != 0 || CVarNRSRecordAll.GetValueOnAnyThread() != 0)
+	{
+		RecordBuffer(GraphBuilder, InView, SceneColorTexture, SceneColorReadback, TEXT("SceneColor"));
+		RecordDepthBuffer(GraphBuilder, InView, SceneDepthTexture, SceneDepthReadback, TEXT("SceneDepth"));
+	}
 
-	if (CVarNRSRecordMotion.GetValueOnRenderThread() != 0)
+	if (CVarNRSRecordMotion.GetValueOnAnyThread() != 0 || CVarNRSRecordAll.GetValueOnAnyThread() != 0)
 	{
 		RecordBuffer(GraphBuilder, InView, MotionVectorTexture, MotionVectorReadback, TEXT("MotionVector"));
 	}
 
-	if (CVarNRSVisualizeX.GetValueOnRenderThread() != 0)
+	if (CVarNRSVisualizeX.GetValueOnAnyThread() != 0)
 	{
 		AddMotionVisualization(GraphBuilder, InView, SceneColorTexture, SceneDepthTexture, MotionVectorTexture);
 	}
@@ -152,12 +170,12 @@ FScreenPassTexture NRSRecordSceneViewExtension::InPostProcessChain(
 	FScreenPassTexture SceneColorScreenPassTexture(Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 	FScreenPassTexture TranslucencyScreenPassTexture(Inputs.GetInput(EPostProcessMaterialInput::SeparateTranslucency));
 
-	if (CVarNRSVisualizeX.GetValueOnRenderThread() != 0)
+	if (CVarNRSVisualizeX.GetValueOnAnyThread() != 0)
 	{
 		AddXVisualization(GraphBuilder, InView, TranslucencyScreenPassTexture.Texture, SceneColorScreenPassTexture.Texture);
 	}
 
-	if (CVarNRSRecordTranslucency.GetValueOnRenderThread() != 0)
+	if (CVarNRSRecordTranslucency.GetValueOnAnyThread() != 0 || CVarNRSRecordAll.GetValueOnAnyThread() != 0)
 	{
 		FRDGTextureRef TranslucencyTexture = TranslucencyScreenPassTexture.Texture;
 		RecordBuffer(GraphBuilder, InView, TranslucencyTexture, TranslucencyReadback, TEXT("Translucency"));
@@ -174,9 +192,6 @@ void NRSRecordSceneViewExtension::AddMotionGeneration(
 		FRDGTextureRef MotionVectorTexture)
 {
 	const FViewInfo& View = (FViewInfo &)InView;
-	const FIntPoint ViewSize = View.ViewRect.Size();
-
-	UE_LOG(LogTemp, Log, TEXT("ViewRect: %d x %d, Min: %d x %d"), ViewSize.X, ViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
 
 	FRDGTextureSRVRef SceneDepthSRV = GraphBuilder.CreateSRV(SceneDepthTexture);
 	FRDGTextureSRVRef SceneVelocitySRV = GraphBuilder.CreateSRV(SceneVelocityTexture);
@@ -406,9 +421,11 @@ bool NRSRecordSceneViewExtension::SaveReadbackIfReady(NRSReadbackState& State, c
 	const FString OutputDir = FPaths::ProjectSavedDir() / TEXT("NRSRecord");
 	IFileManager::Get().MakeDirectory(*OutputDir, true);
 	const FString OutputPath = OutputDir / FString::Printf(
-		TEXT("%06llu_%s_%dx%d.data"),
+		TEXT("%06llu_%s_%dx%d_in_%dx%d.data"),
 		State.FrameId,
 		*Label,
+		ViewSize.Y,
+		ViewSize.X,
 		State.Size.Y,
 		State.Size.X);
 	FFileHelper::SaveArrayToFile(Output, *OutputPath);

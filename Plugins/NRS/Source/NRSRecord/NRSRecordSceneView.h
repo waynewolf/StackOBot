@@ -31,12 +31,12 @@ class NRSRecordSceneViewExtension : public FSceneViewExtensionBase
 public:
 	explicit NRSRecordSceneViewExtension(const FAutoRegister& AutoRegister);
 
-	virtual void PrePostProcessPass_RenderThread(
+	void PrePostProcessPass_RenderThread(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		const FPostProcessingInputs& Inputs) override;
 
-	virtual void SubscribeToPostProcessingPass(
+	void SubscribeToPostProcessingPass(
 		EPostProcessingPass Pass,
 		const FSceneView& InView,
 		FPostProcessingPassDelegateArray& InOutPassCallbacks,
@@ -82,7 +82,7 @@ private:
 		NRSReadbackState& OutReadbackState,
 		const FString& Label);
 
-	static bool SaveReadbackIfReady(NRSReadbackState& State, const FString& Label);
+	bool SaveReadbackIfReady(NRSReadbackState& State, const FString& Label);
 
 private:
 	static uint64 NRSReadbackFrameId;
@@ -94,4 +94,6 @@ private:
 	NRSReadbackState MotionVectorReadback;
 	NRSReadbackState TranslucencyReadback;
 	NRSReadbackState GBufferCReadback;
+
+	FIntPoint ViewSize;
 };
