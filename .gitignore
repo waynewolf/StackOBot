@@ -18,3 +18,4 @@ Plugins/*/Saved
 __pycache__/
 *.pyc
 *.pyo
+train_data/
