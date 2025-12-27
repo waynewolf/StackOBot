@@ -10,18 +10,18 @@ from typing import Dict, Iterable, List, Tuple
 class RecordInfo:
     frame_no: int
     kind: str
-    crop_h: int
-    crop_w: int
-    rt_h: int
-    rt_w: int
+    viewport_h: int
+    viewport_w: int
+    render_target_h: int
+    render_target_w: int
     path: str
 
 
 PATTERN = re.compile(
     r"^(?P<frame>\d+)_"
     r"(?P<kind>SceneColor|SceneDepth|CameraMotion)_"
-    r"(?P<crop_h>\d+)x(?P<crop_w>\d+)_in_"
-    r"(?P<rt_h>\d+)x(?P<rt_w>\d+)\.data$"
+    r"(?P<viewport_h>\d+)x(?P<viewport_w>\d+)_in_"
+    r"(?P<render_target_h>\d+)x(?P<render_target_w>\d+)\.data$"
 )
 
 
@@ -35,10 +35,10 @@ def parse_records(record_dir: str) -> List[RecordInfo]:
             RecordInfo(
                 frame_no=int(match.group("frame")),
                 kind=match.group("kind"),
-                crop_h=int(match.group("crop_h")),
-                crop_w=int(match.group("crop_w")),
-                rt_h=int(match.group("rt_h")),
-                rt_w=int(match.group("rt_w")),
+                viewport_h=int(match.group("viewport_h")),
+                viewport_w=int(match.group("viewport_w")),
+                render_target_h=int(match.group("render_target_h")),
+                render_target_w=int(match.group("render_target_w")),
                 path=os.path.join(record_dir, name),
             )
         )
@@ -48,7 +48,7 @@ def parse_records(record_dir: str) -> List[RecordInfo]:
 def index_records(records: Iterable[RecordInfo]) -> Dict[Tuple[int, str, int, int, int, int], str]:
     index: Dict[Tuple[int, str, int, int, int, int], str] = {}
     for rec in records:
-        key = (rec.frame_no, rec.kind, rec.crop_h, rec.crop_w, rec.rt_h, rec.rt_w)
+        key = (rec.frame_no, rec.kind, rec.viewport_h, rec.viewport_w, rec.render_target_h, rec.render_target_w)
         index[key] = rec.path
     return index
 
@@ -58,14 +58,14 @@ def copy_triplet(
     out_dir: str,
     frame_start: int,
     dest_frame_no: int,
-    crop_h: int,
-    crop_w: int,
-    rt_h: int,
-    rt_w: int,
+    viewport_h: int,
+    viewport_w: int,
+    render_target_h: int,
+    render_target_w: int,
     kind: str,
 ) -> bool:
     keys = [
-        (frame_start + offset, kind, crop_h, crop_w, rt_h, rt_w) for offset in range(3)
+        (frame_start + offset, kind, viewport_h, viewport_w, render_target_h, render_target_w) for offset in range(3)
     ]
     if not all(key in index for key in keys):
         return False
@@ -73,8 +73,8 @@ def copy_triplet(
         out_dir,
         "anime",
         f"{dest_frame_no:06d}",
-        f"{rt_h}x{rt_w}",
-        f"{crop_h}x{crop_w}",
+        f"{render_target_h}x{render_target_w}",
+        f"{viewport_h}x{viewport_w}",
     )
     os.makedirs(dest_dir, exist_ok=True)
     for idx, key in enumerate(keys):
@@ -99,7 +99,7 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
     index = index_records(records)
     combos = sorted(
         {
-            (rec.crop_h, rec.crop_w, rec.rt_h, rec.rt_w)
+            (rec.viewport_h, rec.viewport_w, rec.render_target_h, rec.render_target_w)
             for rec in records
         }
     )
@@ -114,16 +114,16 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
 
     copied = 0
     for dest_frame_no, frame_start in enumerate(valid_frame_starts):
-        for crop_h, crop_w, rt_h, rt_w in combos:
+        for viewport_h, viewport_w, render_target_h, render_target_w in combos:
             color_ok = copy_triplet(
                 index,
                 out_dir,
                 frame_start,
                 dest_frame_no,
-                crop_h,
-                crop_w,
-                rt_h,
-                rt_w,
+                viewport_h,
+                viewport_w,
+                render_target_h,
+                render_target_w,
                 "SceneColor",
             )
             depth_ok = copy_triplet(
@@ -131,10 +131,10 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
                 out_dir,
                 frame_start,
                 dest_frame_no,
-                crop_h,
-                crop_w,
-                rt_h,
-                rt_w,
+                viewport_h,
+                viewport_w,
+                render_target_h,
+                render_target_w,
                 "SceneDepth",
             )
             camera_motion_ok = copy_triplet(
@@ -142,14 +142,14 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
                 out_dir,
                 frame_start,
                 dest_frame_no,
-                crop_h,
-                crop_w,
-                rt_h,
-                rt_w,
+                viewport_h,
+                viewport_w,
+                render_target_h,
+                render_target_w,
                 "CameraMotion",
             )
             
-            if color_ok and depth_ok and depth_ok:
+            if color_ok and depth_ok and camera_motion_ok:
                 copied += 1
     print(f"done, copied triplets: {copied}")
 
