@@ -15,3 +15,6 @@ Plugins/*/Intermediate
 Plugins/*/Saved
 *.sln
 *.code-workspace
+__pycache__/
+*.pyc
+*.pyo
