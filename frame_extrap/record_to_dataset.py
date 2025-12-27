@@ -5,9 +5,6 @@ import shutil
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Tuple
 
-'''
-python frame_extrap/record_to_dataset.py --record-dir Saved/NRSRecord --out-dir frame_extrap/train_data --force
-'''
 
 @dataclass(frozen=True)
 class RecordInfo:
@@ -22,7 +19,7 @@ class RecordInfo:
 
 PATTERN = re.compile(
     r"^(?P<frame>\d+)_"
-    r"(?P<kind>SceneColor|SceneDepth)_"
+    r"(?P<kind>SceneColor|SceneDepth|CameraMotion)_"
     r"(?P<crop_h>\d+)x(?P<crop_w>\d+)_in_"
     r"(?P<rt_h>\d+)x(?P<rt_w>\d+)\.data$"
 )
@@ -84,8 +81,12 @@ def copy_triplet(
         src = index[key]
         if kind == "SceneColor":
             dst_name = f"color_{idx}.data"
-        else:
+        elif kind == "SceneDepth":
             dst_name = f"depth_{idx}.data"
+        elif kind == "CameraMotion":
+            dst_name = f"motion_{idx}.data"
+        else:
+            return False
         shutil.copy2(src, os.path.join(dest_dir, dst_name))
     return True
 
@@ -136,7 +137,19 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
                 rt_w,
                 "SceneDepth",
             )
-            if color_ok and depth_ok:
+            camera_motion_ok = copy_triplet(
+                index,
+                out_dir,
+                frame_start,
+                dest_frame_no,
+                crop_h,
+                crop_w,
+                rt_h,
+                rt_w,
+                "CameraMotion",
+            )
+            
+            if color_ok and depth_ok and depth_ok:
                 copied += 1
     print(f"done, copied triplets: {copied}")
 
@@ -159,5 +172,6 @@ def main() -> None:
     generate_dataset(args.record_dir, args.out_dir)
 
 
+# python frame_extrap/record_to_dataset.py --record-dir Saved/NRSRecord --out-dir frame_extrap/train_data --force
 if __name__ == "__main__":
     main()
