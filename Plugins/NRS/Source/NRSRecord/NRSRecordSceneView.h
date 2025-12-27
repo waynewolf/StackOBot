@@ -54,7 +54,14 @@ private:
 		FRDGTextureRef SceneDepthTexture,
 		FRDGTextureRef SceneVelocityTexture,
 		FRDGTextureRef MotionVectorTexture);
-	
+
+	void AddCameraMotionGeneration(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef SceneVelocityTexture,
+		FRDGTextureRef MotionVectorTexture);
+
 	void AddMotionVisualization(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
@@ -91,7 +98,7 @@ private:
 
 	NRSReadbackState SceneColorReadback;
 	NRSReadbackState SceneDepthReadback;
-	NRSReadbackState MotionVectorReadback;
+	NRSReadbackState CameraMotionReadback;
 	NRSReadbackState TranslucencyReadback;
 	NRSReadbackState GBufferCReadback;
 

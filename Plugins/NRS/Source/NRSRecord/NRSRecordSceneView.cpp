@@ -19,6 +19,7 @@
 
 
 IMPLEMENT_GLOBAL_SHADER(NRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(NRSCameraMotionGenCS, "/Plugin/NRS/CameraMotionGen.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(NRSDepthToFloatCS, "/Plugin/NRS/DepthToFloat.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(NRSMotionVizPS, "/Plugin/NRS/MotionViz.usf", "MainPS", SF_Pixel);
 IMPLEMENT_GLOBAL_SHADER(NRSVisualizeXPS, "/Plugin/NRS/VisualizeX.usf", "MainPS", SF_Pixel);
@@ -33,12 +34,6 @@ static TAutoConsoleVariable<int32> CVarNRSRecordBasic(
 	TEXT("r.NRS.RecordBasic"),
 	0,
 	TEXT("Enable NRS RecordBasic\n0: off, 1: on"),
-	ECVF_Default | ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarNRSRecordMotion(
-	TEXT("r.NRS.RecordMotion"),
-	0,
-	TEXT("Enable NRS RecordMotion\n0: off, 1: on"),
 	ECVF_Default | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarNRSRecordTranslucency(
@@ -59,7 +54,7 @@ NRSRecordSceneViewExtension::NRSRecordSceneViewExtension(const FAutoRegister& Au
 	: FSceneViewExtensionBase(AutoRegister),
 	SceneColorReadback(TEXT("NRS_SceneColorReadback")),
 	SceneDepthReadback(TEXT("NRS_SceneDepthReadback")),
-	MotionVectorReadback(TEXT("NRS_MotionVectorReadback")),
+	CameraMotionReadback(TEXT("NRS_CameraMotionReadback")),
 	TranslucencyReadback(TEXT("NRS_TranslucencyReadback")),
 	GBufferCReadback(TEXT("NRS_GBufferCReadback"))
 {
@@ -100,24 +95,20 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable
 		);
 
-		MotionVectorTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("NRSRecord_MotionVector"));
+		MotionVectorTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("NRSRecord_CameraMotion"));
 	}
 	else
 	{
 		MotionVectorTexture = GraphBuilder.RegisterExternalTexture(MotionVectorRT);
 	}
 
-	AddMotionGeneration(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, MotionVectorTexture);
+	AddCameraMotionGeneration(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, MotionVectorTexture);
 
 	if (CVarNRSRecordBasic.GetValueOnAnyThread() != 0 || CVarNRSRecordAll.GetValueOnAnyThread() != 0)
 	{
 		RecordBuffer(GraphBuilder, InView, SceneColorTexture, SceneColorReadback, TEXT("SceneColor"));
 		RecordDepthBuffer(GraphBuilder, InView, SceneDepthTexture, SceneDepthReadback, TEXT("SceneDepth"));
-	}
-
-	if (CVarNRSRecordMotion.GetValueOnAnyThread() != 0 || CVarNRSRecordAll.GetValueOnAnyThread() != 0)
-	{
-		RecordBuffer(GraphBuilder, InView, MotionVectorTexture, MotionVectorReadback, TEXT("MotionVector"));
+		RecordBuffer(GraphBuilder, InView, MotionVectorTexture, CameraMotionReadback, TEXT("CameraMotion"));
 	}
 
 	if (CVarNRSVisualizeX.GetValueOnAnyThread() != 0)
@@ -215,6 +206,40 @@ void NRSRecordSceneViewExtension::AddMotionGeneration(
 		FComputeShaderUtils::GetGroupCount(
 			FIntVector(ViewSize.X, ViewSize.Y, 1),
 			FIntVector(NRSMotionGenCS::ThreadgroupSizeX, NRSMotionGenCS::ThreadgroupSizeY, NRSMotionGenCS::ThreadgroupSizeZ))
+	);
+}
+
+void NRSRecordSceneViewExtension::AddCameraMotionGeneration(
+		FRDGBuilder& GraphBuilder,
+		const FSceneView& InView,
+		FRDGTextureRef SceneDepthTexture,
+		FRDGTextureRef SceneVelocityTexture,
+		FRDGTextureRef MotionVectorTexture)
+{
+	const FViewInfo& View = (FViewInfo &)InView;
+
+	FRDGTextureSRVRef SceneDepthSRV = GraphBuilder.CreateSRV(SceneDepthTexture);
+	FRDGTextureSRVRef SceneVelocitySRV = GraphBuilder.CreateSRV(SceneVelocityTexture);
+	FRDGTextureUAVRef MotionVectorUAV = GraphBuilder.CreateUAV(MotionVectorTexture);
+
+	AddClearUAVPass(GraphBuilder, MotionVectorUAV, FVector4(0, 0, 0, 0));
+
+	NRSCameraMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCameraMotionGenCS::FParameters>();
+	PassParameters->DepthTexture = SceneDepthTexture;
+	PassParameters->InputDepth = SceneDepthSRV;
+	PassParameters->InputVelocity = SceneVelocitySRV;
+	PassParameters->View = View.ViewUniformBuffer;
+	PassParameters->OutputTexture = MotionVectorUAV;
+
+	TShaderMapRef<NRSCameraMotionGenCS> ComputeShader(View.ShaderMap);
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("CameraMotionGen"),
+		ComputeShader,
+		PassParameters,
+		FComputeShaderUtils::GetGroupCount(
+			FIntVector(ViewSize.X, ViewSize.Y, 1),
+			FIntVector(NRSCameraMotionGenCS::ThreadgroupSizeX, NRSCameraMotionGenCS::ThreadgroupSizeY, NRSCameraMotionGenCS::ThreadgroupSizeZ))
 	);
 }
 
