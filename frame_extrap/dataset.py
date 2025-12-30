@@ -15,6 +15,10 @@ from parser import (
     to_rgb_gray
 )
 
+from utils import (
+    backward_warp_pytorch
+)
+
 class UERecordDataset(Dataset):
     def __init__(
         self,
@@ -290,24 +294,9 @@ def _self_test() -> None:
         denominator = (mu_x * mu_x + mu_y * mu_y + c1) * (sigma_x + sigma_y + c2)
         return numerator / denominator
 
-    # F.grid_sample 严格来说只支持 backward_flow, 所以这是标准用法，
-    # backward_flow 指的是，从目的指向源
-    def _warp_color2_to_color1(src_color, backward_flow):
-        color = src_color.unsqueeze(0)
-        flow = backward_flow.unsqueeze(0)
-        _, _, h, w = color.shape
-        yy, xx = torch.meshgrid(
-            torch.linspace(-1.0, 1.0, h, device=color.device),
-            torch.linspace(-1.0, 1.0, w, device=color.device),
-            indexing="ij",
-        )
-        grid = torch.stack([xx, yy], dim=-1).unsqueeze(0)
-        # 输出坐标加上flow去采样源，是正确的调用方式
-        grid = grid + flow.permute(0, 2, 3, 1)
-        warped = F.grid_sample(color, grid, mode="bilinear", padding_mode="zeros", align_corners=True)
-        return warped.squeeze(0)
-
-    warped_color1 = _warp_color2_to_color1(color2, velocity2)
+    # source: color2, veloctity(2 <-- 1); dest: color2,
+    # conform to pytorch grid_sample requirement
+    warped_color1 = backward_warp_pytorch(color2, velocity2)
     diff_color1_warped = (color1 - warped_color1).abs().clamp(0.0, 1.0)
     ssim_warped = float(_ssim(color1, warped_color1).detach().cpu())
     _visualize(
