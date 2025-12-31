@@ -16,7 +16,8 @@ from parser import (
 )
 
 from utils import (
-    backward_warp_pytorch
+    backward_warp_gridsample,
+    ssim
 )
 
 class UERecordDataset(Dataset):
@@ -253,7 +254,7 @@ def _self_test() -> None:
     parser.add_argument("--color-format", default="r16g16b16a16f", help="r16g16b16a16f|r11g11b10")
     parser.add_argument("--depth-format", default="r32f")
     parser.add_argument("--motion-format", default="g16r16f")
-    parser.add_argument("--index", type=int, default=0)
+    parser.add_argument("--index", type=int, default=7657)
     args = parser.parse_args()
 
     ds = UERecordDataset(
@@ -280,25 +281,10 @@ def _self_test() -> None:
 
     import torch.nn.functional as F
 
-    def _ssim(x, y):
-        x = x.float()
-        y = y.float()
-        mu_x = x.mean()
-        mu_y = y.mean()
-        sigma_x = (x - mu_x).pow(2).mean()
-        sigma_y = (y - mu_y).pow(2).mean()
-        sigma_xy = ((x - mu_x) * (y - mu_y)).mean()
-        c1 = 0.01 * 0.01
-        c2 = 0.03 * 0.03
-        numerator = (2.0 * mu_x * mu_y + c1) * (2.0 * sigma_xy + c2)
-        denominator = (mu_x * mu_x + mu_y * mu_y + c1) * (sigma_x + sigma_y + c2)
-        return numerator / denominator
-
-    # source: color2, veloctity(2 <-- 1); dest: color2,
-    # conform to pytorch grid_sample requirement
-    warped_color1 = backward_warp_pytorch(color2, velocity2)
+    # source: color2, veloctity(2 <-- 1); dest: color1,
+    warped_color1 = backward_warp_gridsample(color2, velocity2)
     diff_color1_warped = (color1 - warped_color1).abs().clamp(0.0, 1.0)
-    ssim_warped = float(_ssim(color1, warped_color1).detach().cpu())
+    ssim_warped = float(ssim(color1, warped_color1).detach().cpu())
     _visualize(
         color0,
         depth0,
@@ -313,6 +299,6 @@ def _self_test() -> None:
         ssim_warped=ssim_warped,
     )
 
-# python frame_extrap/dataset.py --root-dir frame_extrap/train_data --color-format r16g16b16a16f --depth-format r32f --motion-format g16r16f --index 0
+# python frame_extrap/dataset.py --root-dir frame_extrap/train_data --color-format r16g16b16a16f --depth-format r32f --motion-format g16r16f --index 7657
 if __name__ == "__main__":
     _self_test()

@@ -1,8 +1,8 @@
-from typing import Tuple
 import numpy as np
+import matplotlib.image as mpimg
 
 """
-All functions in this file works in numpy HWC format, need to transpose if used in pytorch CHW format
+All functions in this file work in numpy HWC format.
 """
 
 def _decode_ufloat(bits: np.ndarray, mant_bits: int, exp_bits: int) -> np.ndarray:
@@ -30,6 +30,9 @@ def _decode_ufloat(bits: np.ndarray, mant_bits: int, exp_bits: int) -> np.ndarra
 
 
 def read_r11g11b10_data(filename: str, height: int, width: int) -> np.ndarray:
+    """
+    当成颜色返回，返回值每个通道的格式 float32，范围 0，1
+    """
     data = np.fromfile(filename, dtype=np.uint32)
 
     r_bits = data & 0x7FF
@@ -52,6 +55,9 @@ def read_r11g11b10_data(filename: str, height: int, width: int) -> np.ndarray:
 
 
 def read_r16g16b16a16_data(filename: str, height: int, width: int) -> np.ndarray:
+    """
+    当成color返回，返回值每个通道的格式 float32，范围 0，1
+    """
     data = np.fromfile(filename, dtype=np.float16)
     if data.size < 4:
         return np.zeros((0, 3), dtype=np.float32)
@@ -69,6 +75,9 @@ def read_r16g16b16a16_data(filename: str, height: int, width: int) -> np.ndarray
 
 
 def read_g16r16_data(filename: str, height: int, width: int) -> np.ndarray:
+    """
+    当成MV返回，返回值每个通道的格式 float32，范围 -1，1
+    """
     data = np.fromfile(filename, dtype=np.float16)
     if data.size < 2:
         return np.zeros((0, 2), dtype=np.float32)
@@ -85,6 +94,9 @@ def read_g16r16_data(filename: str, height: int, width: int) -> np.ndarray:
 
 
 def read_r32f_data(filename: str, height: int, width: int) -> np.ndarray:
+    """
+    当成深度返回，返回值单个通道，格式 float32，范围 0，1
+    """
     data = np.fromfile(filename, dtype=np.float32)
     if data.size == 0:
         return np.zeros((0, 1), dtype=np.float32)
@@ -97,6 +109,51 @@ def read_r32f_data(filename: str, height: int, width: int) -> np.ndarray:
         data = data.reshape((-1, 1))
 
     return data.astype(np.float32)
+
+
+def read_png_color(filename: str) -> np.ndarray:
+    """
+    mpimg读取的png格式本身数值范围在0，1之间，返回值每个通道的格式 float32，范围 0，1
+    """
+    arr = mpimg.imread(filename)
+    if arr.ndim != 3 or arr.shape[2] not in (3, 4):
+        raise ValueError("read_png_color expects 3 or 4 channels")
+    if np.issubdtype(arr.dtype, np.floating):
+        out = arr.astype(np.float32, copy=False)
+    else:
+        info = np.iinfo(arr.dtype)
+        out = arr.astype(np.float32) / float(info.max)
+    return out
+
+
+def read_png_depth(filename: str) -> np.ndarray:
+    """
+    mpimg读取的png格式本身数值范围在0，1之间，返回值单个通道，格式 float32，范围 0，1
+    """
+    arr = mpimg.imread(filename)
+    if arr.ndim == 3 and arr.shape[2] == 1:
+        arr = arr[..., 0]
+    if arr.ndim != 2:
+        raise ValueError("read_png_depth expects single channel")
+    if np.issubdtype(arr.dtype, np.floating):
+        out = arr.astype(np.float32, copy=False)
+    else:
+        info = np.iinfo(arr.dtype)
+        out = arr.astype(np.float32) / float(info.max)
+    return out[..., None]
+
+
+def read_png_motion_disacard_last2(filename: str) -> np.ndarray:
+    """
+    mpimg读取的png格式本身数值范围在0，1之间，读取四通道，丢弃后两个通道，每个通道都强制转化成 float32 返回，范围 -1，1
+    """
+    arr = mpimg.imread(filename)
+    if arr.ndim != 3 or arr.shape[2] != 4:
+        raise ValueError("read_png_motion_disacard_last2 expects 4 channels")
+    # 返回 HxWx2 两个通道的 ndarray，通道 0 代表的是水平方向移动，通道 1 代表垂直方向移动
+    out = arr[..., :2].astype(np.float32, copy=False)
+    return out * 2.0 - 1.0
+
 
 def visualize_motion01(motion01):
     """
@@ -140,121 +197,3 @@ def to_rgb_gray(img):
     if img.shape[-1] == 1:
         return np.repeat(img, 3, axis=2)
     return img[..., :3]
-
-def _self_test():
-    import parser
-    import pathlib
-    import matplotlib.pyplot as plt
-
-    def format_frame_no(frame_no):
-        return f"{int(frame_no):06d}"
-
-    def parse_dim_pair(dim_text):
-        if "x" not in dim_text:
-            return None
-        height_str, width_str = dim_text.split("x", 1)
-        if not height_str.isdigit() or not width_str.isdigit():
-            return None
-        return int(height_str), int(width_str)
-
-    def parse_record_dimensions(filename):
-        name = pathlib.Path(filename).name
-        parts = name.split("_")
-        if len(parts) < 5:
-            return None
-        if not parts[0].isdigit():
-            return None
-        if "in" not in parts:
-            return None
-        in_index = parts.index("in")
-        if in_index <= 0 or in_index + 1 >= len(parts):
-            return None
-        crop_part = parts[in_index - 1]
-        full_part = parts[in_index + 1]
-        if not full_part.endswith(".data"):
-            return None
-        full_part = full_part[:-5]
-        crop_dims = parse_dim_pair(crop_part)
-        full_dims = parse_dim_pair(full_part)
-        if not crop_dims or not full_dims:
-            return None
-        return crop_dims, full_dims
-
-    def find_scene_color_file(record_dir, frame_no):
-        frame_prefix = format_frame_no(frame_no)
-        for path in record_dir.glob(f"{frame_prefix}_SceneColor_*x*_in_*x*.data"):
-            dims = parse_record_dimensions(path.name)
-            if dims:
-                crop_dims, full_dims = dims
-                return path, crop_dims, full_dims
-        return None, None, None
-
-    def find_motion_vector_file(record_dir, frame_no):
-        frame_prefix = format_frame_no(frame_no)
-        for path in record_dir.glob(f"{frame_prefix}_CameraMotion_*x*_in_*x*.data"):
-            dims = parse_record_dimensions(path.name)
-            if dims:
-                crop_dims, full_dims = dims
-                return path, crop_dims, full_dims
-        return None, None, None
-
-    def find_scene_depth_file(record_dir, frame_no):
-        frame_prefix = format_frame_no(frame_no)
-        for path in record_dir.glob(f"{frame_prefix}_SceneDepth_*x*_in_*x*.data"):
-            dims = parse_record_dimensions(path.name)
-            if dims:
-                crop_dims, full_dims = dims
-                return path, crop_dims, full_dims
-        return None, None, None
-
-
-    RECORD_FOLDER = "Saved/NRSRecord"
-    RECORD_DIR = pathlib.Path(RECORD_FOLDER)
-
-    FRAME_NO = 412
-
-    color_file, vp_dims, rt_dims = find_scene_color_file(RECORD_DIR, FRAME_NO)
-    if color_file is None:
-        raise FileNotFoundError("No SceneColor file found in record directory")
-
-    motion_file, _, _ = find_motion_vector_file(RECORD_DIR, FRAME_NO)
-    scene_depth_file, _, _ = find_scene_depth_file(RECORD_DIR, FRAME_NO)
-    height, width = rt_dims
-    print("SceneColor viewport size:", *vp_dims)
-    print("SceneColor render target size:", height, width)
-
-    # UE 的 SceneColorTexture 有时是 R16G16B16A16，有时是 R11G11B10 !
-    color = parser.read_r16g16b16a16_data(str(color_file), height, width)
-    motion = parser.read_g16r16_data(str(motion_file), height, width)
-    scene_depth = parser.read_r32f_data(str(scene_depth_file), height, width)
-
-    color01 = np.clip(color, 0.0, 1.0)
-
-    # 一般从纹理中读取的运动向量是[-1, 1]范围内的值，这里将其映射到[0, 1]范围
-    motion01 = np.clip(motion * 0.5 + 0.5, 0.0, 1.0)
-    # motion缩放到最小值与最大值的区间，以利于可视化
-    motion_vis = visualize_motion01(motion01)
-    motion_rgb = np.zeros((motion_vis.shape[0], motion_vis.shape[1], 3), dtype=np.float32)
-    motion_rgb[..., 0] = motion_vis[..., 0]
-    motion_rgb[..., 1] = motion_vis[..., 1]
-
-    # 一般从纹理中读取的深度值是Device Z，[0, 1]范围，这里缩放到最小值与最大值的区间，以利于可视化
-    scene_depth_vis = visualize_image01(scene_depth)
-    scene_depth_rgb = to_rgb_gray(scene_depth_vis)
-
-    fig, axes = plt.subplots(1, 3, figsize=(12, 8))
-    axes[0].imshow(color01)
-    axes[0].set_title("SceneColor")
-    axes[1].imshow(motion_rgb)
-    axes[1].set_title("Motion (RG to UNORM)")
-    axes[2].imshow(scene_depth_rgb)
-    axes[2].set_title("SceneDepth")
-
-    for ax in axes.flat:
-        ax.axis("off")
-    plt.tight_layout()
-    plt.show()
-
-# python frame_extrap/parser.py
-if __name__ == "__main__":
-    _self_test()

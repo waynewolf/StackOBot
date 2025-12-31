@@ -19,3 +19,4 @@ __pycache__/
 *.pyc
 *.pyo
 train_data/
+*_png_data/
