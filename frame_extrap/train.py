@@ -81,10 +81,57 @@ def main():
     )
 
     set_seed(cfg.seed)
-    run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
-    run_dir = os.path.join(cfg.output_dir, run_name)
-    ckpt_dir = os.path.join(run_dir, "checkpoints")
-    log_dir = os.path.join(run_dir, "logs")
+    os.makedirs(cfg.output_dir, exist_ok=True)
+
+    def _latest_run_name(root: str) -> str | None:
+        candidates = [
+            name
+            for name in os.listdir(root)
+            if os.path.isdir(os.path.join(root, name)) and name.startswith("run_")
+        ]
+        candidates.sort()
+        return candidates[-1] if candidates else None
+
+    def _latest_checkpoint_path(ckpt_path: str) -> str | None:
+        if not os.path.isdir(ckpt_path):
+            return None
+        checkpoints: list[tuple[int, str]] = []
+        prefix = "gfenet_epoch_"
+        suffix = ".pt"
+        for fname in os.listdir(ckpt_path):
+            if fname.startswith(prefix) and fname.endswith(suffix):
+                num_part = fname[len(prefix) : -len(suffix)]
+                if num_part.isdigit():
+                    checkpoints.append((int(num_part), fname))
+        if not checkpoints:
+            return None
+        checkpoints.sort()
+        return os.path.join(ckpt_path, checkpoints[-1][1])
+
+    latest_run_name = _latest_run_name(cfg.output_dir)
+    resume_ckpt_path = None
+    if latest_run_name:
+        potential_run_dir = os.path.join(cfg.output_dir, latest_run_name)
+        potential_ckpt_dir = os.path.join(potential_run_dir, "checkpoints")
+        resume_ckpt_path = _latest_checkpoint_path(potential_ckpt_dir)
+        if resume_ckpt_path:
+            run_name = latest_run_name
+            run_dir = potential_run_dir
+            ckpt_dir = potential_ckpt_dir
+            log_dir = os.path.join(run_dir, "logs")
+        else:
+            run_name = None
+            resume_ckpt_path = None
+    else:
+        run_name = None
+        resume_ckpt_path = None
+
+    if run_name is None:
+        run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
+        run_dir = os.path.join(cfg.output_dir, run_name)
+        ckpt_dir = os.path.join(run_dir, "checkpoints")
+        log_dir = os.path.join(run_dir, "logs")
+
     os.makedirs(ckpt_dir, exist_ok=True)
     os.makedirs(log_dir, exist_ok=True)
 
@@ -134,7 +181,25 @@ def main():
     writer = SummaryWriter(log_dir=log_dir)
     global_step = 0
     best_val = None
-    for epoch in range(1, cfg.epochs + 1):
+    start_epoch = 1
+
+    if resume_ckpt_path:
+        checkpoint = torch.load(resume_ckpt_path, map_location=device)
+        model.load_state_dict(checkpoint["model_state"])
+        optimizer.load_state_dict(checkpoint["optimizer_state"])
+        scaler_state = checkpoint.get("scaler_state")
+        if scaler_state is not None:
+            scaler.load_state_dict(scaler_state)
+        best_val = checkpoint.get("best_val")
+        global_step = checkpoint.get("global_step", 0)
+        start_epoch = checkpoint.get("epoch", 0) + 1
+        if start_epoch > cfg.epochs:
+            print("Checkpoint already covers requested training epochs. Nothing to do.")
+            writer.close()
+            return
+        print(f"Resuming from {resume_ckpt_path} (epoch {checkpoint['epoch']})")
+
+    for epoch in range(start_epoch, cfg.epochs + 1):
         model.train()
         train_loss = 0.0
         for step, (inputs, target) in enumerate(train_loader, start=1):
@@ -191,12 +256,12 @@ def main():
                         C2_0_gt = group2[0, 3:6, ...]
                         C2_0_pred = forward_warp(C1_0_gt, f_12_0[0, ...])
                         writer.add_image(
-                            f"val/C2_0_gt_{global_step}",
+                            f"im_gt/{epoch:04d}_C2_0",
                             C2_0_gt.detach().clamp(0.0, 1.0),
                             epoch,
                         )
                         writer.add_image(
-                            f"val/C2_0_pred_{global_step}",
+                            f"im_pred/{epoch:04d}_C2_0",
                             C2_0_pred.detach().clamp(0.0, 1.0),
                             epoch,
                         )
@@ -204,14 +269,14 @@ def main():
 
             val_loss = total / max(1, count)
 
-            writer.add_scalars(
-                "loss/epoch",
-                {
-                    "train": train_loss,
-                    "val": val_loss if val_loss is not None else float("nan"),
-                },
-                epoch,
-            )
+        writer.add_scalars(
+            "loss/epoch",
+            {
+                "train": train_loss,
+                "val": val_loss if val_loss is not None else float("nan"),
+            },
+            epoch,
+        )
 
         ckpt_path = os.path.join(ckpt_dir, f"gfenet_epoch_{epoch}.pt")
         torch.save(
@@ -219,8 +284,11 @@ def main():
                 "epoch": epoch,
                 "model_state": model.state_dict(),
                 "optimizer_state": optimizer.state_dict(),
+                "scaler_state": scaler.state_dict(),
                 "train_loss": train_loss,
                 "val_loss": val_loss,
+                "best_val": best_val,
+                "global_step": global_step,
                 "config": cfg.__dict__,
             },
             ckpt_path,
