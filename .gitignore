@@ -20,3 +20,4 @@ __pycache__/
 *.pyo
 train_data/
 *_png_data/
+frame_extrap/outputs/
