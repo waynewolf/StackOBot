@@ -109,6 +109,16 @@ def forward_warp(src_color: torch.Tensor, forward_flow: torch.Tensor) -> torch.T
     _splat(m10, x1i, y0i, w10)
     _splat(m11, x1i, y1i, w11)
 
+    # Crash may happen whenever every warped pixel landed outside the output frame,
+    # forward_warp() produced an all-zero tensor that had no computational path back
+    # to the predicted flow. In that case the reconstruction loss became a constant,
+    # loss.requires_grad turned False, and backward() raised the “element 0 ... does
+    # not require grad” error.
+    #
+    # This workaround keeps the graph connected to the flow even if every sample
+    # splats out of bounds.
+    out_flat = out_flat + flow[:, :1].reshape(n, 1, -1) * 0.0
+
     out = out_flat.reshape(n, c, h, w)
     if color_was_3d:
         out = out.squeeze(0)
