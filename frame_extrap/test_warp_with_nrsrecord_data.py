@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import utils
+from metrics import ssim
 import pathlib
 import matplotlib.pyplot as plt
 from parser import *
@@ -85,7 +86,7 @@ def find_scene_depth_file(record_dir, frame_no):
 def main():
     parser = argparse.ArgumentParser(description="test warp with nrsrecord data")
     parser.add_argument("--root-dir", default="Saved/NRSRecord", help="dataset root")
-    parser.add_argument("--index", type=int, default=7657)
+    parser.add_argument("--index", type=int, default=0)
     args = parser.parse_args()
 
     RECORD_DIR = pathlib.Path(args.root_dir)
@@ -118,7 +119,7 @@ def main():
     color1_t = torch.from_numpy(color1_np).permute(2, 0, 1)  # 3xHxW
 
     # NRSRecord 录制的 motion 是前一帧指向当前帧的, backward_warp(C1, V1<-0) => C0
-    warp_color0 = utils.backward_warp_gridsample(
+    warp_color0 = utils.backward_warp(
         color1_t,  # 3xHxW
         torch.from_numpy(motion1_np).permute(2, 0, 1)  # 2xHxW
     ).permute(1, 2, 0).numpy()  # HxWxC
@@ -127,7 +128,7 @@ def main():
     
     diff0_t = (warp_color0_t - color0_t).abs().clamp(0.0, 1.0)
     diff_color0 = diff0_t.permute(1, 2, 0).cpu().numpy()
-    ssim_color0 = float(utils.ssim(color0_t, warp_color0_t).detach().cpu())
+    ssim_color0 = float(ssim(color0_t, warp_color0_t).detach().cpu())
 
     color0_vis = np.clip(color0_np, 0.0, 1.0)
     color1_vis = np.clip(color1_np, 0.0, 1.0)
@@ -154,25 +155,24 @@ def main():
 
     fig, axes = plt.subplots(3, 3, figsize=(12, 9))
     axes[0, 0].imshow(color0_vis)
-    axes[0, 0].set_title("Color 0")
+    axes[0, 0].set_title("C 0")
     axes[0, 1].imshow(motion_rgb0)
-    axes[0, 1].set_title("Motion 0")
+    axes[0, 1].set_title("M 0")
     axes[0, 2].imshow(depth_rgb0)
-    axes[0, 2].set_title("Depth 0")
+    axes[0, 2].set_title("D 0")
 
     axes[1, 0].imshow(to_color_rgb(warp_color0))
-    axes[1, 0].set_title("Backward Warped Color 0 <-- 1")
+    axes[1, 0].set_title("Backward Warped C 0 <-- 1")
     axes[1, 1].imshow(to_color_rgb(diff_color0))
     axes[1, 1].set_title(f"Diff 0 (SSIM={ssim_color0:.4f})")
     axes[1, 2].axis("off")
 
     axes[2, 0].imshow(color1_vis)
-    axes[2, 0].set_title("Color 1")
+    axes[2, 0].set_title("C 1")
     axes[2, 1].imshow(motion_rgb1)
-    axes[2, 1].set_title("Motion 1")
+    axes[2, 1].set_title("M 1")
     axes[2, 2].imshow(depth_rgb1)
-    axes[2, 2].set_title("Depth 1")
-
+    axes[2, 2].set_title("D 1")
     for ax in axes.flat:
         ax.axis("off")
     plt.tight_layout()

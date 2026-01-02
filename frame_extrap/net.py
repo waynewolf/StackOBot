@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
+from utils import forward_warp
 
 def _convrelu(in_channels, out_channels, kernel_size=3, stride=1, padding=1, dilation=1, groups=1, bias=True):
     return nn.Sequential(
@@ -15,23 +16,6 @@ def _downsize(x: torch.Tensor):
 
 def _mse_loss(x0: torch.Tensor, x1: torch.Tensor) -> torch.Tensor:
     return F.mse_loss(x0, x1, reduction="mean")
-
-
-def _warp(color: torch.Tensor, motion: torch.Tensor) -> torch.Tensor:
-    # color: [1,3,H,W], motion: [1,2,H,W] with dx,dy in [-1,1]
-    n, _, h, w = color.shape
-    # base grid in [-1,1], shape [1,H,W,2]
-    yy, xx = torch.meshgrid(
-        torch.linspace(-1.0, 1.0, h, device=color.device),
-        torch.linspace(-1.0, 1.0, w, device=color.device),
-        indexing="ij",
-    )
-    grid = torch.stack([xx, yy], dim=-1).unsqueeze(0).repeat(n, 1, 1, 1)
-    # add flow (dx, dy), motion is [N,2,H,W] -> [N,H,W,2]
-    flow = motion.permute(0, 2, 3, 1)
-    grid = grid + flow
-    # sample
-    return F.grid_sample(color, grid, mode="bilinear", padding_mode="zeros", align_corners=True)
 
 
 class Encoder(nn.Module):
@@ -149,11 +133,11 @@ class GFENet(nn.Module):
         GT_3 = _downsize(GT_2)
         GT_4 = _downsize(GT_3)
 
-        C1_0_gt, C2_0_gt, V2_0_gt = group2[:, :3, ...], group2[:, 3:6, ...], group2[:, 6:8, ...]
-        C1_1_gt, C2_1_gt, V2_1_gt = GT_1[:, :3, ...], GT_1[:, 3:6, ...], GT_1[:, 6:8, ...]
-        C1_2_gt, C2_2_gt, V2_2_gt = GT_2[:, :3, ...], GT_2[:, 3:6, ...], GT_2[:, 6:8, ...]
-        C1_3_gt, C2_3_gt, V2_3_gt = GT_3[:, :3, ...], GT_3[:, 3:6, ...], GT_3[:, 6:8, ...]
-        C1_4_gt, C2_4_gt, V2_4_gt = GT_4[:, :3, ...], GT_4[:, 3:6, ...], GT_4[:, 6:8, ...]
+        C1_0_gt, C2_0_gt = group2[:, :3, ...], group2[:, 3:6, ...]
+        C1_1_gt, C2_1_gt = GT_1[:, :3, ...], GT_1[:, 3:6, ...]
+        C1_2_gt, C2_2_gt = GT_2[:, :3, ...], GT_2[:, 3:6, ...]
+        C1_3_gt, C2_3_gt = GT_3[:, :3, ...], GT_3[:, 3:6, ...]
+        C1_4_gt, C2_4_gt = GT_4[:, :3, ...], GT_4[:, 3:6, ...]
 
         phi_2_4, f_12_4 = self.decoder5(phi_0_5, phi_1_5, None)
         phi_2_3, f_12_3 = self.decoder4(phi_0_4, phi_1_4, phi_2_4)
@@ -161,17 +145,11 @@ class GFENet(nn.Module):
         phi_2_1, f_12_1 = self.decoder2(phi_0_2, phi_1_2, phi_2_2)
         _, f_12_0 = self.decoder1(phi_0_1, phi_1_1, phi_2_1)
 
-        L_motion_4 = _mse_loss(f_12_4, -V2_4_gt)
-        L_motion_3 = _mse_loss(f_12_3, -V2_3_gt)
-        L_motion_2 = _mse_loss(f_12_2, -V2_2_gt)
-        L_motion_1 = _mse_loss(f_12_1, -V2_1_gt)
-        L_motion_0 = _mse_loss(f_12_0, -V2_0_gt)
-
-        C2_4_pred = _warp(C1_4_gt, f_12_4)
-        C2_3_pred = _warp(C1_3_gt, f_12_3)
-        C2_2_pred = _warp(C1_2_gt, f_12_2)
-        C2_1_pred = _warp(C1_1_gt, f_12_1)
-        C2_0_pred = _warp(C1_0_gt, f_12_0)
+        C2_4_pred = forward_warp(C1_4_gt, f_12_4)
+        C2_3_pred = forward_warp(C1_3_gt, f_12_3)
+        C2_2_pred = forward_warp(C1_2_gt, f_12_2)
+        C2_1_pred = forward_warp(C1_1_gt, f_12_1)
+        C2_0_pred = forward_warp(C1_0_gt, f_12_0)
 
         L_rec_4 = _mse_loss(C2_4_pred, C2_4_gt)
         L_rec_3 = _mse_loss(C2_3_pred, C2_3_gt)
@@ -179,12 +157,10 @@ class GFENet(nn.Module):
         L_rec_1 = _mse_loss(C2_1_pred, C2_1_gt)
         L_rec_0 = _mse_loss(C2_0_pred, C2_0_gt)
 
-        L_motion = L_motion_0 + L_motion_1 + L_motion_2 + L_motion_3 + L_motion_4
         L_rec = L_rec_0 + L_rec_1 + L_rec_2 + L_rec_3 + L_rec_4
 
-        alpha = 0.1
-        beta = 0.01
-        loss = alpha * L_motion + beta * L_rec
+        #TODO: add distillation loss in the future
+        loss = L_rec
 
         return f_12_0, loss
 
@@ -198,10 +174,11 @@ def _self_test_inference():
 def _self_test_train():
     group0 = torch.randn(1, 6, 352, 448)
     group1 = torch.randn(1, 6, 352, 448)
-    group2 = torch.randn(1, 8, 352, 448) # C1,C2,V2 as GT, 3+3+2=8 channels
+    group2 = torch.randn(1, 6, 352, 448) # C1,C2 as GT, 3+3=6 channels
     model = GFENet()
     flow_12, loss = model.forward(group0, group1, group2)
     assert flow_12.shape == (1, 2, 352, 448)
+    print(f"self_test train loss: {loss.item():.6g}")
 
 if __name__ == "__main__":
     _self_test_inference()

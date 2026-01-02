@@ -15,11 +15,6 @@ from parser import (
     to_rgb_gray
 )
 
-from utils import (
-    backward_warp_gridsample,
-    ssim
-)
-
 class UERecordDataset(Dataset):
     def __init__(
         self,
@@ -37,8 +32,8 @@ class UERecordDataset(Dataset):
         self.transform = transform
         self.samples = self._scan_samples()
 
-    def _scan_samples(self) -> List[Tuple[str, str, str, str, str, str, str, str, int, int, int, int]]:
-        samples: List[Tuple[str, str, str, str, str, str, str, str, int, int, int, int]] = []
+    def _scan_samples(self) -> List[Tuple[str, str, str, str, str, str, str, int, int, int, int]]:
+        samples: List[Tuple[str, str, str, str, str, str, str, int, int, int, int]] = []
         for root, _, files in os.walk(self.root_dir):
             if not {
                 "color_0.data",
@@ -48,24 +43,23 @@ class UERecordDataset(Dataset):
                 "depth_1.data",
                 "motion_0.data",
                 "motion_1.data",
-                "motion_2.data",
             }.issubset(set(files)):
                 continue
             crop_dir = os.path.basename(root)
             rt_dir = os.path.basename(os.path.dirname(root))
             if "x" not in crop_dir or "x" not in rt_dir:
                 continue
-            crop_h, crop_w = crop_dir.split("x", 1)
+            vp_h, vp_w = crop_dir.split("x", 1)
             rt_h, rt_w = rt_dir.split("x", 1)
             if (
-                not crop_h.isdigit()
-                or not crop_w.isdigit()
+                not vp_h.isdigit()
+                or not vp_w.isdigit()
                 or not rt_h.isdigit()
                 or not rt_w.isdigit()
             ):
                 continue
-            ch, cw = int(crop_h), int(crop_w)
-            rh, rw = int(rt_h), int(rt_w)
+            vp_h, vp_w = int(vp_h), int(vp_w)
+            rt_h, rt_w = int(rt_h), int(rt_w)
             samples.append(
                 (
                     os.path.join(root, "color_0.data"),
@@ -75,11 +69,10 @@ class UERecordDataset(Dataset):
                     os.path.join(root, "depth_1.data"),
                     os.path.join(root, "motion_0.data"),
                     os.path.join(root, "motion_1.data"),
-                    os.path.join(root, "motion_2.data"),
-                    rh,
-                    rw,
-                    ch,
-                    cw,
+                    rt_h,
+                    rt_w,
+                    vp_h,
+                    vp_w,
                 )
             )
         return sorted(samples)
@@ -106,40 +99,37 @@ class UERecordDataset(Dataset):
     def __len__(self) -> int:
         return len(self.samples)
 
-    def get_crop_size(self) -> Optional[Tuple[int, int]]:
+    def get_viewport_size(self) -> Optional[Tuple[int, int]]:
         if not self.samples:
             return None
-        _, _, _, _, _, _, _, _, crop_h, crop_w = self.samples[0]
-        return crop_h, crop_w
+        _, _, _, _, _, _, _, _, vp_h, vp_w = self.samples[0]
+        return vp_h, vp_w
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        c0_path, c1_path, c2_path, d0_path, d1_path, v0_path, v1_path, v2_path, rt_h, rt_w, crop_h, crop_w = self.samples[index]
+        c0_path, c1_path, c2_path, d0_path, d1_path, f0_path, f1_path, rt_h, rt_w, vp_h, vp_w = self.samples[index]
         c0_np = self._read_color(c0_path, rt_h, rt_w)
         c1_np = self._read_color(c1_path, rt_h, rt_w)
         c2_np = self._read_color(c2_path, rt_h, rt_w)
         d0_np = self._read_depth(d0_path, rt_h, rt_w)
         d1_np = self._read_depth(d1_path, rt_h, rt_w)
-        v0_np = self._read_motion(v0_path, rt_h, rt_w)
-        v1_np = self._read_motion(v1_path, rt_h, rt_w)
-        v2_np = self._read_motion(v2_path, rt_h, rt_w)
+        f0_np = self._read_motion(f0_path, rt_h, rt_w)
+        f1_np = self._read_motion(f1_path, rt_h, rt_w)
 
         c0_tensor = torch.from_numpy(c0_np).permute(2, 0, 1).float()
         c1_tensor = torch.from_numpy(c1_np).permute(2, 0, 1).float()
         c2_tensor = torch.from_numpy(c2_np).permute(2, 0, 1).float()
         d0_tensor = torch.from_numpy(d0_np).permute(2, 0, 1).float()
         d1_tensor = torch.from_numpy(d1_np).permute(2, 0, 1).float()
-        v0_tensor = torch.from_numpy(v0_np).permute(2, 0, 1).float()
-        v1_tensor = torch.from_numpy(v1_np).permute(2, 0, 1).float()
-        v2_tensor = torch.from_numpy(v2_np).permute(2, 0, 1).float()
+        f0_tensor = torch.from_numpy(f0_np).permute(2, 0, 1).float()
+        f1_tensor = torch.from_numpy(f1_np).permute(2, 0, 1).float()
 
-        c0 = c0_tensor[:, :crop_h, :crop_w]
-        c1 = c1_tensor[:, :crop_h, :crop_w]
-        c2 = c2_tensor[:, :crop_h, :crop_w]
-        d0 = d0_tensor[:, :crop_h, :crop_w]
-        d1 = d1_tensor[:, :crop_h, :crop_w]
-        v0 = v0_tensor[:, :crop_h, :crop_w]
-        v1 = v1_tensor[:, :crop_h, :crop_w]
-        v2 = v2_tensor[:, :crop_h, :crop_w]
+        c0 = c0_tensor[:, :vp_h, :vp_w]
+        c1 = c1_tensor[:, :vp_h, :vp_w]
+        c2 = c2_tensor[:, :vp_h, :vp_w]
+        d0 = d0_tensor[:, :vp_h, :vp_w]
+        d1 = d1_tensor[:, :vp_h, :vp_w]
+        f0 = f0_tensor[:, :vp_h, :vp_w]
+        f1 = f1_tensor[:, :vp_h, :vp_w]
 
         if self.transform:
             c0 = self.transform(c0)
@@ -147,30 +137,26 @@ class UERecordDataset(Dataset):
             c2 = self.transform(c2)
             d0 = self.transform(d0)
             d1 = self.transform(d1)
-            v0 = self.transform(v0)
-            v1 = self.transform(v1)
-            v2 = self.transform(v2)
+            f0 = self.transform(f0)
+            f1 = self.transform(f1)
 
-        inputs = torch.concat([c0, d0, v0, c1, d1, v1], dim=0)
-        labels = torch.concat([c1, c2, v2], dim=0)
+        inputs = torch.concat([c0, d0, f0, c1, d1, f1], dim=0)
+        labels = torch.concat([c1, c2], dim=0)
+
         return inputs, labels
 
 
 def _visualize(
-    color0,
-    depth0,
-    velocity0,
-    color1,
-    depth1,
-    velocity1,
-    color2,
-    velocity2,
-    warped_color1_from_color2=None,
-    diff_color1_warped=None,
-    ssim_warped=None,
+    color0: torch.Tensor,
+    depth0: torch.Tensor,
+    flow0: torch.Tensor,
+    color1: torch.Tensor,
+    depth1: torch.Tensor,
+    flow1: torch.Tensor,
+    color2: torch.Tensor
 ):
     """
-    可视化color(unorm), depth(device z, unorm), motion(screen space, snorm)
+    可视化color(unorm), depth(device z, unorm), flow(screen space, snorm)
     """
     import matplotlib.pyplot as plt
 
@@ -187,60 +173,42 @@ def _visualize(
         depth_vis = visualize_image01(depth_np)
         return to_rgb_gray(depth_vis)
 
-    def to_velocity_rgb(velocity):
-        velocity_np = to_numpy(velocity).transpose(1, 2, 0)
-        velocity01 = np.clip(velocity_np * 0.5 + 0.5, 0.0, 1.0)
-        velocity_vis = visualize_motion01(velocity01)
-        velocity_rgb = np.zeros((velocity_vis.shape[0], velocity_vis.shape[1], 3), dtype=np.float32)
-        velocity_rgb[..., 0] = velocity_vis[..., 0]
-        velocity_rgb[..., 1] = velocity_vis[..., 1]
-        return velocity_rgb
+    def to_flow_rgb(flow):
+        flow_np = to_numpy(flow).transpose(1, 2, 0)
+        flow01 = np.clip(flow_np * 0.5 + 0.5, 0.0, 1.0)
+        flow_vis = visualize_motion01(flow01)
+        flow_rgb = np.zeros((flow_vis.shape[0], flow_vis.shape[1], 3), dtype=np.float32)
+        flow_rgb[..., 0] = flow_vis[..., 0]
+        flow_rgb[..., 1] = flow_vis[..., 1]
+        return flow_rgb
 
-    fig, axes = plt.subplots(3, 4, figsize=(16, 10))
+    fig, axes = plt.subplots(3, 3, figsize=(12, 8))
 
     axes[0, 0].imshow(to_color_rgb(color0))
-    axes[0, 0].set_title("Color 0")
+    axes[0, 0].set_title("C 0")
     axes[0, 0].axis("off")
+    axes[0, 1].imshow(to_color_rgb(color1))
+    axes[0, 1].set_title("C 1")
     axes[0, 1].axis("off")
-    axes[0, 2].imshow(to_depth_rgb(depth0))
-    axes[0, 2].set_title("Depth 0")
+    axes[0, 2].imshow(to_color_rgb(color2))
+    axes[0, 2].set_title("C 2")
     axes[0, 2].axis("off")
-    axes[0, 3].imshow(to_velocity_rgb(velocity0))
-    axes[0, 3].set_title("Velocity 0")
-    axes[0, 3].axis("off")
 
-    axes[1, 0].imshow(to_color_rgb(color1))
-    axes[1, 0].set_title("Color 1")
+    axes[1, 0].imshow(to_depth_rgb(depth0))
+    axes[1, 0].set_title("D 0")
     axes[1, 0].axis("off")
-    if warped_color1_from_color2 is not None:
-        axes[1, 1].imshow(to_color_rgb(warped_color1_from_color2))
-        axes[1, 1].set_title("Warped C1 <-- C2")
-        axes[1, 1].axis("off")
-    else:
-        axes[1, 1].axis("off")
-    axes[1, 2].imshow(to_depth_rgb(depth1))
-    axes[1, 2].set_title("Depth 1")
+    axes[1, 1].imshow(to_depth_rgb(depth1))
+    axes[1, 1].set_title("D 1")
+    axes[1, 1].axis("off")
     axes[1, 2].axis("off")
-    axes[1, 3].imshow(to_velocity_rgb(velocity1))
-    axes[1, 3].set_title("Velocity 1")
-    axes[1, 3].axis("off")
 
-    axes[2, 0].imshow(to_color_rgb(color2))
-    axes[2, 0].set_title("Color 2")
+    axes[2, 0].imshow(to_flow_rgb(flow0))
+    axes[2, 0].set_title("F 0")
     axes[2, 0].axis("off")
-    if diff_color1_warped is not None:
-        axes[2, 1].imshow(to_color_rgb(diff_color1_warped))
-        if ssim_warped is None:
-            axes[2, 1].set_title("Diff C1 vs Warped C1")
-        else:
-            axes[2, 1].set_title(f"Diff C1 vs Warped C1 (SSIM={ssim_warped:.4f})")
-        axes[2, 1].axis("off")
-    else:
-        axes[2, 1].axis("off")
+    axes[2, 1].imshow(to_flow_rgb(flow1))
+    axes[2, 1].set_title("F 1")
+    axes[2, 1].axis("off")
     axes[2, 2].axis("off")
-    axes[2, 3].imshow(to_velocity_rgb(velocity2))
-    axes[2, 3].set_title("Velocity 2")
-    axes[2, 3].axis("off")
 
     plt.tight_layout()
     plt.show()
@@ -254,7 +222,7 @@ def _self_test() -> None:
     parser.add_argument("--color-format", default="r16g16b16a16f", help="r16g16b16a16f|r11g11b10")
     parser.add_argument("--depth-format", default="r32f")
     parser.add_argument("--motion-format", default="g16r16f")
-    parser.add_argument("--index", type=int, default=7657)
+    parser.add_argument("--index", type=int, default=0)
     args = parser.parse_args()
 
     ds = UERecordDataset(
@@ -272,32 +240,15 @@ def _self_test() -> None:
 
     color0 = inputs[0:3, ...]
     depth0 = inputs[3:4, ...]
-    velocity0 = inputs[4:6, ...]
+    flow0 = inputs[4:6, ...]
     color1 = inputs[6:9, ...]
     depth1 = inputs[9:10, ...]
-    velocity1 = inputs[10:12, ...]
+    flow1 = inputs[10:12, ...]
     color2 = labels[3:6, ...]
-    velocity2 = labels[6:8, ...]
 
     import torch.nn.functional as F
 
-    # source: color2, veloctity(2 <-- 1); dest: color1,
-    warped_color1 = backward_warp_gridsample(color2, velocity2)
-    diff_color1_warped = (color1 - warped_color1).abs().clamp(0.0, 1.0)
-    ssim_warped = float(ssim(color1, warped_color1).detach().cpu())
-    _visualize(
-        color0,
-        depth0,
-        velocity0,
-        color1,
-        depth1,
-        velocity1,
-        color2,
-        velocity2,
-        warped_color1_from_color2=warped_color1,
-        diff_color1_warped=diff_color1_warped,
-        ssim_warped=ssim_warped,
-    )
+    _visualize(color0, depth0, flow0, color1, depth1, flow1, color2)
 
 # python frame_extrap/dataset.py --root-dir frame_extrap/train_data --color-format r16g16b16a16f --depth-format r32f --motion-format g16r16f --index 7657
 if __name__ == "__main__":
