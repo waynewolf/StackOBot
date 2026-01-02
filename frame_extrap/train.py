@@ -1,21 +1,24 @@
 import argparse
 import os
 from dataclasses import dataclass
+from datetime import datetime
 
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
+from torch.utils.tensorboard import SummaryWriter
 
 from dataset import UERecordDataset
 from net import GFENet
+from utils import forward_warp
 
 
 @dataclass
 class TrainConfig:
     data_dir: str
     output_dir: str
-    image_size: int
+    crop_height: int
+    crop_width: int
     batch_size: int
     epochs: int
     lr: float
@@ -23,6 +26,24 @@ class TrainConfig:
     amp: bool
     seed: int
     val_split: float
+
+
+class CenterCropTransform:
+    def __init__(self, crop_height: int, crop_width: int) -> None:
+        self.crop_height = crop_height
+        self.crop_width = crop_width
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        if self.crop_height <= 0 or self.crop_width <= 0:
+            return tensor
+        _, h, w = tensor.shape
+        if h < self.crop_height or w < self.crop_width:
+            raise ValueError(
+                f"tensor spatial size ({h}x{w}) smaller than crop {self.crop_height}x{self.crop_width}"
+            )
+        top = (h - self.crop_height) // 2
+        left = (w - self.crop_width) // 2
+        return tensor[:, top : top + self.crop_height, left : left + self.crop_width]
 
 
 def set_seed(seed: int) -> None:
@@ -34,7 +55,8 @@ def main():
     parser = argparse.ArgumentParser(description="Train GFENet")
     parser.add_argument("--data-dir", default="frame_extrap/train_data", help="dataset root")
     parser.add_argument("--output-dir", default="frame_extrap/outputs", help="save checkpoints")
-    parser.add_argument("--image-size", type=int, default=0, help="optional resize to square size")
+    parser.add_argument("--crop-height", type=int, default=352, help="center crop height")
+    parser.add_argument("--crop-width", type=int, default=448, help="center crop width")
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--epochs", type=int, default=10)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -47,7 +69,8 @@ def main():
     cfg = TrainConfig(
         data_dir=args.data_dir,
         output_dir=args.output_dir,
-        image_size=args.image_size,
+        crop_height=args.crop_height,
+        crop_width=args.crop_width,
         batch_size=args.batch_size,
         epochs=args.epochs,
         lr=args.lr,
@@ -58,19 +81,17 @@ def main():
     )
 
     set_seed(cfg.seed)
-    os.makedirs(cfg.output_dir, exist_ok=True)
+    run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
+    run_dir = os.path.join(cfg.output_dir, run_name)
+    ckpt_dir = os.path.join(run_dir, "checkpoints")
+    log_dir = os.path.join(run_dir, "logs")
+    os.makedirs(ckpt_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
 
-    def _resize_if_needed(t: torch.Tensor) -> torch.Tensor:
-        if cfg.image_size and cfg.image_size > 0:
-            return F.interpolate(
-                t.unsqueeze(0),
-                size=(cfg.image_size, cfg.image_size),
-                mode="bilinear",
-                align_corners=False,
-            ).squeeze(0)
-        return t
-
-    dataset = UERecordDataset(root_dir=cfg.data_dir, transform=_resize_if_needed)
+    dataset = UERecordDataset(
+        root_dir=cfg.data_dir,
+        transform=CenterCropTransform(cfg.crop_height, cfg.crop_width),
+    )
     if len(dataset) == 0:
         raise RuntimeError(f"no samples found under {cfg.data_dir}")
 
@@ -103,26 +124,29 @@ def main():
         )
 
     use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
+    device_str = "cuda" if use_cuda else "cpu"
+    device = torch.device(device_str)
     model = GFENet().to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     amp_enabled = cfg.amp and use_cuda
     scaler = torch.amp.GradScaler(enabled=amp_enabled)
 
+    writer = SummaryWriter(log_dir=log_dir)
+    global_step = 0
     best_val = None
     for epoch in range(1, cfg.epochs + 1):
         model.train()
         train_loss = 0.0
-        for inputs, target in train_loader:
+        for step, (inputs, target) in enumerate(train_loader, start=1):
             inputs = inputs.to(device, non_blocking=True)
             target = target.to(device, non_blocking=True)
 
             group0 = inputs[:, 0:6, ...]
             group1 = inputs[:, 6:12, ...]
-            group2 = torch.cat([inputs[:, 6:9, ...], target, inputs[:, 10:12, ...]], dim=1)
+            group2 = target
 
             optimizer.zero_grad(set_to_none=True)
-            with torch.cuda.amp.autocast(enabled=amp_enabled):
+            with torch.amp.autocast(device_type=device_str, enabled=amp_enabled):
                 _, loss = model(group0, group1, group2)
 
             scaler.scale(loss).backward()
@@ -130,6 +154,14 @@ def main():
             scaler.update()
 
             train_loss += loss.item() * inputs.size(0)
+            global_step += 1
+            writer.add_scalar("loss/batch", loss.item(), global_step)
+
+            if step % 100 == 0:
+                print(
+                    f"epoch {epoch} step {step} / {len(train_loader)} "
+                    f"batch_loss={loss.item():.6f}"
+                )
 
         train_loss /= len(train_loader.dataset)
 
@@ -138,6 +170,7 @@ def main():
             model.eval()
             total = 0.0
             count = 0
+            sample_logged = False
             with torch.no_grad():
                 for inputs, target in val_loader:
                     inputs = inputs.to(device, non_blocking=True)
@@ -145,15 +178,42 @@ def main():
 
                     group0 = inputs[:, 0:6, ...]
                     group1 = inputs[:, 6:12, ...]
-                    group2 = torch.cat([inputs[:, 6:9, ...], target, inputs[:, 10:12, ...]], dim=1)
+                    group2 = target
 
-                    with torch.cuda.amp.autocast(enabled=amp_enabled):
-                        _, loss = model(group0, group1, group2)
+                    with torch.amp.autocast(device_type=device_str, enabled=amp_enabled):
+                        f_12_0, loss = model(group0, group1, group2)
                     total += loss.item() * inputs.size(0)
                     count += inputs.size(0)
+
+                    # select first GT in the first batch for visualization
+                    if not sample_logged:
+                        C1_0_gt = group2[0, 0:3, ...]
+                        C2_0_gt = group2[0, 3:6, ...]
+                        C2_0_pred = forward_warp(C1_0_gt, f_12_0[0, ...])
+                        writer.add_image(
+                            f"val/C2_0_gt_{global_step}",
+                            C2_0_gt.detach().clamp(0.0, 1.0),
+                            epoch,
+                        )
+                        writer.add_image(
+                            f"val/C2_0_pred_{global_step}",
+                            C2_0_pred.detach().clamp(0.0, 1.0),
+                            epoch,
+                        )
+                        sample_logged = True
+
             val_loss = total / max(1, count)
 
-        ckpt_path = os.path.join(cfg.output_dir, f"gfenet_epoch_{epoch}.pt")
+            writer.add_scalars(
+                "loss/epoch",
+                {
+                    "train": train_loss,
+                    "val": val_loss if val_loss is not None else float("nan"),
+                },
+                epoch,
+            )
+
+        ckpt_path = os.path.join(ckpt_dir, f"gfenet_epoch_{epoch}.pt")
         torch.save(
             {
                 "epoch": epoch,
@@ -168,7 +228,7 @@ def main():
 
         if val_loss is not None and (best_val is None or val_loss < best_val):
             best_val = val_loss
-            best_path = os.path.join(cfg.output_dir, "gfenet_best.pt")
+            best_path = os.path.join(ckpt_dir, "gfenet_best.pt")
             torch.save({"epoch": epoch, "model_state": model.state_dict()}, best_path)
 
         if val_loss is not None:
@@ -176,6 +236,7 @@ def main():
         else:
             print(f"epoch {epoch}/{cfg.epochs} train_loss={train_loss:.6f}")
 
+    writer.close()
 
 if __name__ == "__main__":
     main()
