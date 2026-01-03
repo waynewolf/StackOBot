@@ -101,7 +101,7 @@ class Decoder(nn.Module):
 
 class GFENet(nn.Module):
     """
-    Game Extrapolation Flow Net
+    Game Flow Extrapolation Net
     """
     def __init__(self) -> None:
         super(GFENet, self).__init__()
