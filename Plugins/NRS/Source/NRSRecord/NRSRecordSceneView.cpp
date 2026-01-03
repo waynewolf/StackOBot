@@ -24,7 +24,7 @@ IMPLEMENT_GLOBAL_SHADER(NRSCameraMotionPS, "/Plugin/NRS/NRSCameraMotion.usf", "M
 
 static TAutoConsoleVariable<int32> CVarNRSRecord(
 	TEXT("r.NRS.Record"),
-	0,
+	1,
 	TEXT("Enable NRS Record\n0: off, 1: on"),
 	ECVF_Default | ECVF_RenderThreadSafe);
 
