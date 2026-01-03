@@ -14,12 +14,13 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "PixelFormat.h"
+#include "Math/Vector2D.h"
 #include "RHICommandList.h"
 #include "RHIGPUReadback.h"
 
 
-IMPLEMENT_GLOBAL_SHADER(NRSMotionGenCS, "/Plugin/NRS/MotionGen.usf", "MainCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(NRSDepthToFloatCS, "/Plugin/NRS/DepthToFloat.usf", "MainCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(NRSCopyColorPS, "/Plugin/NRS/NRSCopyColor.usf", "MainPS", SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(NRSCameraMotionPS, "/Plugin/NRS/NRSCameraMotion.usf", "MainPS", SF_Pixel);
 
 static TAutoConsoleVariable<int32> CVarNRSRecord(
 	TEXT("r.NRS.Record"),
@@ -28,6 +29,8 @@ static TAutoConsoleVariable<int32> CVarNRSRecord(
 	ECVF_Default | ECVF_RenderThreadSafe);
 
 uint64 NRSRecordSceneViewExtension::NRSReadbackFrameId = 0;
+int NRSRecordSceneViewExtension::DestViewSizeX = 448;
+int NRSRecordSceneViewExtension::DestViewSizeY = 352;
 
 NRSRecordSceneViewExtension::NRSRecordSceneViewExtension(const FAutoRegister& AutoRegister)
 	: FSceneViewExtensionBase(AutoRegister),
@@ -49,82 +52,58 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 	}
 
 	const FViewInfo& View = (FViewInfo &)InView;
-	ViewSize = View.ViewRect.Size();
-	UE_LOG(LogTemp, Log, TEXT("Game ViewRect: %d x %d, Min: %d x %d"), ViewSize.X, ViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
+	SourceViewSize = View.ViewRect.Size();
+
+	UE_LOG(LogTemp, Log, TEXT("Game ViewRect: %d x %d, Min: %d x %d"), SourceViewSize.X, SourceViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
+
+	if (SourceViewSize.X < DestViewSizeX || SourceViewSize.Y < DestViewSizeY)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Source view size is smaller than destination size, skipping NRS recording."));
+		return;
+	}
 
 	NRSReadbackFrameId++;
-	
+
 	FRDGTextureRef SceneColorTexture = (*Inputs.SceneTextures)->SceneColorTexture;
 	FRDGTextureRef SceneDepthTexture = (*Inputs.SceneTextures)->SceneDepthTexture;
 	FRDGTextureRef VelocityTexture = (*Inputs.SceneTextures)->GBufferVelocityTexture;
 
-	FRDGTextureRef MotionVectorTexture;
+	FRDGTextureRef DestColorTexture = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(
+			FIntPoint(DestViewSizeX, DestViewSizeY),
+			PF_R8G8B8A8,
+			FClearValueBinding::Black,
+			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable),
+		TEXT("NRSRecord_ScaledSceneColor"));
 
-	if (!MotionVectorRT.IsValid() ||
-		MotionVectorRT->GetDesc().Extent.X != SceneDepthTexture->Desc.Extent.X ||
-		MotionVectorRT->GetDesc().Extent.Y != SceneDepthTexture->Desc.Extent.Y ||
-		MotionVectorRT->GetDesc().Format != PF_G16R16F)
-	{
-		FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
-			FIntPoint(SceneDepthTexture->Desc.Extent.X, SceneDepthTexture->Desc.Extent.Y),
+	DrawDestColorTexture(GraphBuilder, InView, SceneColorTexture, DestColorTexture);
+
+	FRDGTextureRef DestDepthTexture = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(
+			FIntPoint(DestViewSizeX, DestViewSizeY),
+			PF_R32_FLOAT,
+			FClearValueBinding::Black,
+			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable),
+		TEXT("NRSRecord_ScaledSceneDepth"));
+
+	DrawDestDepthTexture(GraphBuilder, InView, SceneDepthTexture, DestDepthTexture);
+
+	FRDGTextureRef DestMotionTexture = GraphBuilder.CreateTexture(
+		FRDGTextureDesc::Create2D(
+			FIntPoint(DestViewSizeX, DestViewSizeY),
 			PF_G16R16F,
-			FClearValueBinding::None,
-			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable
-		);
+			FClearValueBinding::Black,
+			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable),
+		TEXT("NRSRecord_CameraMotion"));
 
-		MotionVectorTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("NRSRecord_CameraMotion"));
-	}
-	else
-	{
-		MotionVectorTexture = GraphBuilder.RegisterExternalTexture(MotionVectorRT);
-	}
-
-	AddMotionGeneration(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, MotionVectorTexture);
+	DrawDestCameraMotionTexture(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, DestMotionTexture);
 
 	if (CVarNRSRecord.GetValueOnAnyThread() != 0)
 	{
-		RecordBuffer(GraphBuilder, InView, SceneColorTexture, SceneColorReadback, TEXT("SceneColor"));
-		RecordDepthBuffer(GraphBuilder, InView, SceneDepthTexture, SceneDepthReadback, TEXT("SceneDepth"));
-		RecordBuffer(GraphBuilder, InView, MotionVectorTexture, CameraMotionReadback, TEXT("CameraMotion"));
+		RecordBuffer(GraphBuilder, InView, DestColorTexture, SceneColorReadback, TEXT("SceneColor"));
+		RecordBuffer(GraphBuilder, InView, DestDepthTexture, SceneDepthReadback, TEXT("SceneDepth"));
+		RecordBuffer(GraphBuilder, InView, DestMotionTexture, CameraMotionReadback, TEXT("CameraMotion"));
 	}
-
-	GraphBuilder.QueueTextureExtraction(MotionVectorTexture, &MotionVectorRT);
-}
-
-void NRSRecordSceneViewExtension::AddMotionGeneration(
-		FRDGBuilder& GraphBuilder,
-		const FSceneView& InView,
-		FRDGTextureRef SceneDepthTexture,
-		FRDGTextureRef SceneVelocityTexture,
-		FRDGTextureRef MotionVectorTexture)
-{
-	const FViewInfo& View = (FViewInfo &)InView;
-
-	UE_LOG(LogTemp, Log, TEXT("AddMotionGeneration: %d x %d"), ViewSize.X, ViewSize.Y);
-
-	FRDGTextureSRVRef SceneDepthSRV = GraphBuilder.CreateSRV(SceneDepthTexture);
-	FRDGTextureSRVRef SceneVelocitySRV = GraphBuilder.CreateSRV(SceneVelocityTexture);
-	FRDGTextureUAVRef MotionVectorUAV = GraphBuilder.CreateUAV(MotionVectorTexture);
-
-	AddClearUAVPass(GraphBuilder, MotionVectorUAV, FVector4(0, 0, 0, 0));
-
-	NRSMotionGenCS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSMotionGenCS::FParameters>();
-	PassParameters->DepthTexture = SceneDepthTexture;
-	PassParameters->InputDepth = SceneDepthSRV;
-	PassParameters->InputVelocity = SceneVelocitySRV;
-	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->OutputTexture = MotionVectorUAV;
-
-	TShaderMapRef<NRSMotionGenCS> ComputeShader(View.ShaderMap);
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("MotionGen"),
-		ComputeShader,
-		PassParameters,
-		FComputeShaderUtils::GetGroupCount(
-			FIntVector(ViewSize.X, ViewSize.Y, 1),
-			FIntVector(NRSMotionGenCS::ThreadgroupSizeX, NRSMotionGenCS::ThreadgroupSizeY, NRSMotionGenCS::ThreadgroupSizeZ))
-	);
 }
 
 void NRSRecordSceneViewExtension::RecordBuffer(
@@ -172,61 +151,9 @@ void NRSRecordSceneViewExtension::RecordBuffer(
 	Readback.bPendingCopy = true;
 }
 
-void NRSRecordSceneViewExtension::RecordDepthBuffer(
-	FRDGBuilder& GraphBuilder,
-	const FSceneView& InView,
-	FRDGTextureRef InTexture,
-	NRSReadbackState& Readback,
+bool NRSRecordSceneViewExtension::SaveReadbackIfReady(
+	NRSReadbackState& State,
 	const FString& Label)
-{
-	if (InTexture == nullptr)
-	{
-		return;
-	}
-
-	const EPixelFormat Format = InTexture->Desc.Format;
-	const bool bIsDepthOrStencil = IsDepthOrStencilFormat(Format);
-	if (!bIsDepthOrStencil)
-	{
-		RecordBuffer(GraphBuilder, InView, InTexture, Readback, Label);
-		return;
-	}
-
-	const FViewInfo& View = (FViewInfo &)InView;
-	const FIntPoint TextureSize = InTexture->Desc.Extent;
-
-	const FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
-		TextureSize,
-		PF_R32_FLOAT,
-		FClearValueBinding::None,
-		TexCreate_UAV | TexCreate_ShaderResource
-	);
-
-	FRDGTextureRef DepthFloatTexture = GraphBuilder.CreateTexture(OutputDesc, TEXT("NRSRecord_DepthFloat"));
-	FRDGTextureSRVRef DepthSRV = GraphBuilder.CreateSRV(InTexture);
-	FRDGTextureUAVRef DepthUAV = GraphBuilder.CreateUAV(DepthFloatTexture);
-
-	NRSDepthToFloatCS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSDepthToFloatCS::FParameters>();
-	PassParameters->DepthTexture = InTexture;
-	PassParameters->InputDepth = DepthSRV;
-	PassParameters->OutputDepth = DepthUAV;
-	PassParameters->TextureSize = TextureSize;
-
-	TShaderMapRef<NRSDepthToFloatCS> ComputeShader(View.ShaderMap);
-	FComputeShaderUtils::AddPass(
-		GraphBuilder,
-		RDG_EVENT_NAME("DepthToFloat"),
-		ComputeShader,
-		PassParameters,
-		FComputeShaderUtils::GetGroupCount(
-			FIntVector(TextureSize.X, TextureSize.Y, 1),
-			FIntVector(NRSDepthToFloatCS::ThreadgroupSizeX, NRSDepthToFloatCS::ThreadgroupSizeY, NRSDepthToFloatCS::ThreadgroupSizeZ))
-	);
-
-	RecordBuffer(GraphBuilder, InView, DepthFloatTexture, Readback, Label);
-}
-
-bool NRSRecordSceneViewExtension::SaveReadbackIfReady(NRSReadbackState& State, const FString& Label)
 {
 	if (!State.Readback || !State.Readback->IsReady())
 	{
@@ -266,11 +193,128 @@ bool NRSRecordSceneViewExtension::SaveReadbackIfReady(NRSReadbackState& State, c
 		TEXT("%06llu_%s_%dx%d_in_%dx%d.data"),
 		State.FrameId,
 		*Label,
-		ViewSize.Y,
-		ViewSize.X,
+		State.Size.Y,
+		State.Size.X,
 		State.Size.Y,
 		State.Size.X);
 	FFileHelper::SaveArrayToFile(Output, *OutputPath);
 
 	return true;
+}
+
+void NRSRecordSceneViewExtension::DrawDestColorTexture(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& InView,
+	FRDGTextureRef SourceTexture,
+	FRDGTextureRef DestTexture)
+{
+	if (SourceTexture == nullptr || DestTexture == nullptr)
+	{
+		return;
+	}
+
+	const FScreenPassTexture OutputTexture(DestTexture);
+	const FScreenPassTextureViewport OutputViewport(OutputTexture);
+	const FScreenPassTexture InputScreenPass(SourceTexture);
+	const FScreenPassTextureViewport InputViewport(InputScreenPass);
+
+	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
+	PassParameters->InputTexture = SourceTexture;
+	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
+
+	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
+	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
+
+	AddDrawScreenPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("NRS_DrawDestColor"),
+		FScreenPassViewInfo(InView),
+		OutputViewport,
+		InputViewport,
+		PixelShader,
+		PassParameters);
+}
+
+void NRSRecordSceneViewExtension::DrawDestDepthTexture(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& InView,
+	FRDGTextureRef SourceTexture,
+	FRDGTextureRef DestTexture)
+{
+	if (SourceTexture == nullptr || DestTexture == nullptr)
+	{
+		return;
+	}
+
+	const FScreenPassTexture OutputTexture(DestTexture);
+	const FScreenPassTextureViewport OutputViewport(OutputTexture);
+	const FScreenPassTexture InputScreenPass(SourceTexture);
+	const FScreenPassTextureViewport InputViewport(InputScreenPass);
+
+	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
+	PassParameters->InputTexture = SourceTexture;
+	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
+
+	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
+	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
+
+	AddDrawScreenPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("NRS_DrawDestDepth"),
+		FScreenPassViewInfo(InView),
+		OutputViewport,
+		InputViewport,
+		PixelShader,
+		PassParameters);
+}
+
+void NRSRecordSceneViewExtension::DrawDestCameraMotionTexture(
+	FRDGBuilder& GraphBuilder,
+	const FSceneView& InView,
+	FRDGTextureRef SceneDepthTexture,
+	FRDGTextureRef SceneVelocityTexture,
+	FRDGTextureRef DestMotionTexture)
+{
+	if (SceneDepthTexture == nullptr || DestMotionTexture == nullptr)
+	{
+		return;
+	}
+
+	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
+
+	const FScreenPassTexture OutputTexture(DestMotionTexture);
+	const FScreenPassTextureViewport OutputViewport(OutputTexture);
+	const FScreenPassTexture InputDepth(SceneDepthTexture);
+	const FScreenPassTextureViewport InputViewport(InputDepth);
+
+	const FIntPoint DepthExtent = SceneDepthTexture->Desc.Extent;
+	const float SafeSourceWidth = SourceViewSize.X > 0 ? static_cast<float>(SourceViewSize.X) : 1.0f;
+	const float SafeSourceHeight = SourceViewSize.Y > 0 ? static_cast<float>(SourceViewSize.Y) : 1.0f;
+	const float SafeDestWidth = DestViewSizeX > 0 ? static_cast<float>(DestViewSizeX) : 1.0f;
+	const float SafeDestHeight = DestViewSizeY > 0 ? static_cast<float>(DestViewSizeY) : 1.0f;
+
+	NRSCameraMotionPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCameraMotionPS::FParameters>();
+	PassParameters->InputDepthTexture = SceneDepthTexture;
+	PassParameters->InputDepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->View = View.ViewUniformBuffer;
+	PassParameters->InputViewMin = FVector2f(static_cast<float>(View.ViewRect.Min.X), static_cast<float>(View.ViewRect.Min.Y));
+	PassParameters->SourceViewSize = FVector2f(static_cast<float>(SourceViewSize.X), static_cast<float>(SourceViewSize.Y));
+	PassParameters->InvSourceViewSize = FVector2f(1.0f / SafeSourceWidth, 1.0f / SafeSourceHeight);
+	PassParameters->DestViewSize = FVector2f(static_cast<float>(DestViewSizeX), static_cast<float>(DestViewSizeY));
+	PassParameters->SourceToDestScale = FVector2f(SafeDestWidth / SafeSourceWidth, SafeDestHeight / SafeSourceHeight);
+	PassParameters->InputTextureSize = FVector2f(static_cast<float>(DepthExtent.X), static_cast<float>(DepthExtent.Y));
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestMotionTexture, ERenderTargetLoadAction::ENoAction);
+
+	TShaderMapRef<NRSCameraMotionPS> PixelShader(View.ShaderMap);
+
+	AddDrawScreenPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("NRS_DrawDestCameraMotion"),
+		FScreenPassViewInfo(InView),
+		OutputViewport,
+		InputViewport,
+		PixelShader,
+		PassParameters);
 }
