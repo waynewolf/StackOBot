@@ -4,8 +4,23 @@
 Texture2D InputTexture;
 SamplerState InputTextureSampler;
 
+float2 InputViewMin;
+float2 SourceViewSize;
+float2 DestViewSize;
+float2 InputTextureSize;
+float2 InvInputTextureSize;
+
 float4 MainPS(FScreenVertexOutput In) : SV_Target0
 {
-    float2 sourceUV = In.UV;
+    float2 safeDestSize = max(DestViewSize, float2(1.0f, 1.0f));
+    float2 safeSourceSize = max(SourceViewSize, float2(1.0f, 1.0f));
+
+    float2 destPixel = saturate(In.UV) * safeDestSize;
+    float2 sourcePixel = destPixel * (safeSourceSize / safeDestSize);
+
+    float2 texturePixel = sourcePixel + InputViewMin;
+    float2 sourceUV = texturePixel * InvInputTextureSize;
+    sourceUV = clamp(sourceUV, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+
     return InputTexture.SampleLevel(InputTextureSampler, sourceUV, 0.0f);
 }

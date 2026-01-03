@@ -213,17 +213,36 @@ void NRSRecordSceneViewExtension::DrawDestColorTexture(
 		return;
 	}
 
+	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
+
 	const FScreenPassTexture OutputTexture(DestTexture);
 	const FScreenPassTextureViewport OutputViewport(OutputTexture);
-	const FScreenPassTexture InputScreenPass(SourceTexture);
+	const FScreenPassTexture InputScreenPass(SourceTexture, View.ViewRect);
 	const FScreenPassTextureViewport InputViewport(InputScreenPass);
+
+	const FVector2f InputViewMin(
+		static_cast<float>(InputViewport.Rect.Min.X),
+		static_cast<float>(InputViewport.Rect.Min.Y));
+	const FVector2f SourceViewSizeF(
+		static_cast<float>(InputViewport.Rect.Width()),
+		static_cast<float>(InputViewport.Rect.Height()));
+	const FVector2f DestViewSizeF(
+		static_cast<float>(DestViewSizeX),
+		static_cast<float>(DestViewSizeY));
+	const FIntPoint InputExtent = SourceTexture->Desc.Extent;
+	const FVector2f InvInputTextureSize(
+		InputExtent.X > 0 ? 1.0f / static_cast<float>(InputExtent.X) : 0.0f,
+		InputExtent.Y > 0 ? 1.0f / static_cast<float>(InputExtent.Y) : 0.0f);
 
 	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
 	PassParameters->InputTexture = SourceTexture;
 	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->InputViewMin = InputViewMin;
+	PassParameters->SourceViewSize = SourceViewSizeF;
+	PassParameters->DestViewSize = DestViewSizeF;
+	PassParameters->InvInputTextureSize = InvInputTextureSize;
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
 
-	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
 	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
 
 	AddDrawScreenPass(
@@ -247,17 +266,36 @@ void NRSRecordSceneViewExtension::DrawDestDepthTexture(
 		return;
 	}
 
+	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
+
 	const FScreenPassTexture OutputTexture(DestTexture);
 	const FScreenPassTextureViewport OutputViewport(OutputTexture);
-	const FScreenPassTexture InputScreenPass(SourceTexture);
+	const FScreenPassTexture InputScreenPass(SourceTexture, View.ViewRect);
 	const FScreenPassTextureViewport InputViewport(InputScreenPass);
+
+	const FVector2f InputViewMin(
+		static_cast<float>(InputViewport.Rect.Min.X),
+		static_cast<float>(InputViewport.Rect.Min.Y));
+	const FVector2f SourceViewSizeF(
+		static_cast<float>(InputViewport.Rect.Width()),
+		static_cast<float>(InputViewport.Rect.Height()));
+	const FVector2f DestViewSizeF(
+		static_cast<float>(DestViewSizeX),
+		static_cast<float>(DestViewSizeY));
+	const FIntPoint InputExtent = SourceTexture->Desc.Extent;
+	const FVector2f InvInputTextureSize(
+		InputExtent.X > 0 ? 1.0f / static_cast<float>(InputExtent.X) : 0.0f,
+		InputExtent.Y > 0 ? 1.0f / static_cast<float>(InputExtent.Y) : 0.0f);
 
 	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
 	PassParameters->InputTexture = SourceTexture;
 	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->InputViewMin = InputViewMin;
+	PassParameters->SourceViewSize = SourceViewSizeF;
+	PassParameters->DestViewSize = DestViewSizeF;
+	PassParameters->InvInputTextureSize = InvInputTextureSize;
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
 
-	const FViewInfo& View = static_cast<const FViewInfo&>(InView);
 	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
 
 	AddDrawScreenPass(
