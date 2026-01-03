@@ -22,6 +22,7 @@ class TrainConfig:
     batch_size: int
     epochs: int
     lr: float
+    weight_decay: float
     num_workers: int
     amp: bool
     seed: int
@@ -59,7 +60,8 @@ def main():
     parser.add_argument("--crop-width", type=int, default=448, help="center crop width")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--epochs", type=int, default=100)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=1e-3)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
@@ -74,6 +76,7 @@ def main():
         batch_size=args.batch_size,
         epochs=args.epochs,
         lr=args.lr,
+        weight_decay=args.weight_decay,
         num_workers=args.num_workers,
         amp=args.amp,
         seed=args.seed,
@@ -174,7 +177,7 @@ def main():
     device_str = "cuda" if use_cuda else "cpu"
     device = torch.device(device_str)
     model = GFENet().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
     amp_enabled = cfg.amp and use_cuda
     scaler = torch.amp.GradScaler(enabled=amp_enabled)
 
@@ -298,6 +301,7 @@ def main():
             best_val = val_loss
             best_path = os.path.join(ckpt_dir, "gfenet_best.pt")
             torch.save({"epoch": epoch, "model_state": model.state_dict()}, best_path)
+            print(f"New best model saved at epoch {epoch} with val_loss={val_loss:.6f}")
 
         if val_loss is not None:
             print(f"epoch {epoch}/{cfg.epochs} train_loss={train_loss:.6f} val_loss={val_loss:.6f}")
