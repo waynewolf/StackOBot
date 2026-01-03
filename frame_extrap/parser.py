@@ -31,7 +31,11 @@ def _decode_ufloat(bits: np.ndarray, mant_bits: int, exp_bits: int) -> np.ndarra
 
 def read_r11g11b10_data(filename: str, height: int, width: int) -> np.ndarray:
     """
-    当成颜色返回，返回值每个通道的格式 float32，范围 0，1
+    当成color返回
+    输入:
+        HxWx4, 每个像素 3 个通道, 每个通道格式是 11/11/10 bit ufloat, 数据需要 unpack, 范围 [0, 1]
+    输出:
+        HxWx3, 每个像素 3 个通道, 每个通道格式是 float32, 范围 [0, 1]
     """
     data = np.fromfile(filename, dtype=np.uint32)
 
@@ -56,7 +60,11 @@ def read_r11g11b10_data(filename: str, height: int, width: int) -> np.ndarray:
 
 def read_r16g16b16a16_data(filename: str, height: int, width: int) -> np.ndarray:
     """
-    当成color返回，返回值每个通道的格式 float32，范围 0，1
+    当成color返回
+    输入:
+        HxWx4, 每个像素 4 个通道, 每个通道格式是 float16, 范围 [0, 1]
+    输出:
+        HxWx3, 每个像素 3 个通道, 每个通道格式是 float32, 范围 [0, 1]
     """
     data = np.fromfile(filename, dtype=np.float16)
     if data.size < 4:
@@ -74,9 +82,37 @@ def read_r16g16b16a16_data(filename: str, height: int, width: int) -> np.ndarray
     return rgb.astype(np.float32)
 
 
+def read_r8g8b8a8_data(filename: str, height: int, width: int) -> np.ndarray:
+    """
+    当成color返回
+    输入:
+        HxWx4, 每个像素 4 个通道, 每个通道格式是 unorm, 范围 [0, 1]
+    输出:
+        HxWx3, 每个像素 3 个通道, 每个通道格式是 float32, 范围 [0, 1]
+    """
+    data = np.fromfile(filename, dtype=np.uint8)
+    if data.size < 4:
+        return np.zeros((0, 3), dtype=np.float32)
+
+    count = data.size // 4
+    rgba = data[:count * 4].reshape((count, 4)).astype(np.float32) / 255.0
+    rgb = rgba[:, :3]
+
+    if height > 0 and width > 0:
+        expected = height * width
+        if rgb.shape[0] >= expected:
+            rgb = rgb[:expected].reshape((height, width, 3))
+
+    return rgb.astype(np.float32)
+
+
 def read_g16r16_data(filename: str, height: int, width: int) -> np.ndarray:
     """
-    当成MV返回，返回值每个通道的格式 float32，范围 -1，1
+    当成 motion 返回
+    输入:
+        HxWx2, 每个像素 2 个通道, 每个通道格式是 float16, 范围 [-1, 1]
+    输出:
+        HxWx2, 每个像素 2 个通道, 每个通道格式是 float32, 范围 [0, 1]
     """
     data = np.fromfile(filename, dtype=np.float16)
     if data.size < 2:
@@ -95,7 +131,11 @@ def read_g16r16_data(filename: str, height: int, width: int) -> np.ndarray:
 
 def read_r32f_data(filename: str, height: int, width: int) -> np.ndarray:
     """
-    当成深度返回，返回值单个通道，格式 float32，范围 0，1
+    当成 depth 返回
+    输入:
+        HxWx1, 每个像素 1 个通道, 每个通道格式是 float32, 范围 [0, 1]
+    输出:
+        HxWx1, 每个像素 1 个通道, 每个通道格式是 float32, 范围 [0, 1]
     """
     data = np.fromfile(filename, dtype=np.float32)
     if data.size == 0:
@@ -113,7 +153,7 @@ def read_r32f_data(filename: str, height: int, width: int) -> np.ndarray:
 
 def read_png_color(filename: str) -> np.ndarray:
     """
-    mpimg读取的png格式本身数值范围在0，1之间，返回值每个通道的格式 float32，范围 0，1
+    mpimg读取的png格式本身数值范围在0, 1之间, 返回值每个通道的格式 float32, 范围 0, 1
     """
     arr = mpimg.imread(filename)
     if arr.ndim != 3 or arr.shape[2] not in (3, 4):
@@ -128,7 +168,7 @@ def read_png_color(filename: str) -> np.ndarray:
 
 def read_png_depth(filename: str) -> np.ndarray:
     """
-    mpimg读取的png格式本身数值范围在0，1之间，返回值单个通道，格式 float32，范围 0，1
+    mpimg读取的png格式本身数值范围在0, 1之间, 返回值单个通道, 格式 float32, 范围 0, 1
     """
     arr = mpimg.imread(filename)
     if arr.ndim == 3 and arr.shape[2] == 1:
@@ -145,7 +185,7 @@ def read_png_depth(filename: str) -> np.ndarray:
 
 def read_png_motion_disacard_last2(filename: str) -> np.ndarray:
     """
-    mpimg读取的png格式本身数值范围在0，1之间，读取四通道，丢弃后两个通道，每个通道都强制转化成 float32 返回，范围 -1，1
+    mpimg读取的png格式本身数值范围在0, 1之间, 读取四通道, 丢弃后两个通道, 每个通道都强制转化成 float32 返回，范围 -1, 1
     """
     arr = mpimg.imread(filename)
     if arr.ndim != 3 or arr.shape[2] != 4:

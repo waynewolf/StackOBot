@@ -13,11 +13,12 @@ float2 InputTextureSize;
 
 static const float2 Epsilon2 = float2(1e-6f, 1e-6f);
 
-float2 ComputeViewportUV(float2 InputUV)
+float2 ConvertDestUVToSourcePixel(float2 DestUV)
 {
-	float2 absolutePixel = InputUV * InputTextureSize;
-	float2 viewportPixel = absolutePixel - InputViewMin;
-	return viewportPixel * InvSourceViewSize;
+	float2 safeDestSize = max(DestViewSize, float2(1.0f, 1.0f));
+	float2 safeSourceSize = max(SourceViewSize, float2(1.0f, 1.0f));
+	float2 destPixel = saturate(DestUV) * safeDestSize;
+	return destPixel * (safeSourceSize / safeDestSize);
 }
 
 float2 ConvertVelocityToDestScreen(float2 VelocityNDC)
@@ -31,10 +32,15 @@ float2 ConvertVelocityToDestScreen(float2 VelocityNDC)
 // 数据集故意不加 object motion, 所以未采样 SceneVelocity
 float4 MainPS(FScreenVertexOutput In) : SV_Target0
 {
-	float deviceZ01 = InputDepthTexture.SampleLevel(InputDepthSampler, In.UV, 0.0f).r;
+	float2 sourcePixel = ConvertDestUVToSourcePixel(In.UV);
+	float2 texturePixel = sourcePixel + InputViewMin;
+	float2 safeTextureSize = max(InputTextureSize, float2(1.0f, 1.0f));
+	float2 sourceUV = texturePixel / safeTextureSize;
+	sourceUV = clamp(sourceUV, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+	float deviceZ01 = InputDepthTexture.SampleLevel(InputDepthSampler, sourceUV, 0.0f).r;
 
-    // 把基于整张纹理的 In.UV 转化成 viewport 归一化坐标(考虑了左上角可能有个非零的 ViewRect.Min)
-	float2 viewportUV = ComputeViewportUV(In.UV);
+    // 把 source 像素位置转化成 viewport 归一化坐标
+	float2 viewportUV = sourcePixel * InvSourceViewSize;
 
     // viewportUV [0, 1] -> screenPos [-1, 1], UE 的 screen pos 其实指的是 x, y 的 NDC
 	float2 screenPos = ViewportUVToScreenPos(viewportUV);

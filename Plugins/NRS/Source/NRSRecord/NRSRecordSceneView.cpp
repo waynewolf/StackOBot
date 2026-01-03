@@ -96,7 +96,7 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable),
 		TEXT("NRSRecord_CameraMotion"));
 
-	DrawDestCameraMotionTexture(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, DestMotionTexture);
+	DrawDestCameraMotionTexture(GraphBuilder, InView, SceneDepthTexture, DestMotionTexture);
 
 	if (CVarNRSRecord.GetValueOnAnyThread() != 0)
 	{
@@ -312,7 +312,6 @@ void NRSRecordSceneViewExtension::DrawDestCameraMotionTexture(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	FRDGTextureRef SceneDepthTexture,
-	FRDGTextureRef SceneVelocityTexture,
 	FRDGTextureRef DestMotionTexture)
 {
 	if (SceneDepthTexture == nullptr || DestMotionTexture == nullptr)

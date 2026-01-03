@@ -63,7 +63,6 @@ public:
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
 		FRDGTextureRef SceneDepthTexture,
-		FRDGTextureRef SceneVelocityTexture,
 		FRDGTextureRef DestMotionTexture);
 
 private:

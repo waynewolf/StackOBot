@@ -86,7 +86,7 @@ def find_scene_depth_file(record_dir, frame_no):
 def main():
     parser = argparse.ArgumentParser(description="test warp with nrsrecord data")
     parser.add_argument("--root-dir", default="Saved/NRSRecord", help="dataset root")
-    parser.add_argument("--index", type=int, default=0)
+    parser.add_argument("--index", type=int, default=1)
     args = parser.parse_args()
 
     RECORD_DIR = pathlib.Path(args.root_dir)
@@ -102,23 +102,18 @@ def main():
     print("SceneColor viewport size:", *vp_dims)
     print("SceneColor render target size:", height, width)
 
-    vp_height, vp_width = vp_dims
-
-    def crop_to_viewport(arr):
-        return arr[:vp_height, :vp_width, ...]
-
-    # NRSRecord 的 SceneColorTexture 有时是 R16G16B16A16，有时是 R11G11B10 !
-    color0_np = crop_to_viewport(read_r16g16b16a16_data(str(color_file0), height, width))
-    motion0_np = crop_to_viewport(read_g16r16_data(str(motion_file0), height, width))
-    depth0_np = crop_to_viewport(read_r32f_data(str(depth_file0), height, width))
-    color1_np = crop_to_viewport(read_r16g16b16a16_data(str(color_file1), height, width))
-    motion1_np = crop_to_viewport(read_g16r16_data(str(motion_file1), height, width))
-    depth1_np = crop_to_viewport(read_r32f_data(str(depth_file1), height, width))
+    # NRSRecord 的 SceneColorTexture 是 R8G8B8A8_UNORM 格式存储的
+    color0_np = read_r8g8b8a8_data(str(color_file0), height, width)
+    motion0_np = read_g16r16_data(str(motion_file0), height, width)
+    depth0_np = read_r32f_data(str(depth_file0), height, width)
+    color1_np = read_r8g8b8a8_data(str(color_file1), height, width)
+    motion1_np = read_g16r16_data(str(motion_file1), height, width)
+    depth1_np = read_r32f_data(str(depth_file1), height, width)
 
     color0_t = torch.from_numpy(color0_np).permute(2, 0, 1)  # 3xHxW
     color1_t = torch.from_numpy(color1_np).permute(2, 0, 1)  # 3xHxW
 
-    # NRSRecord 录制的 motion 是前一帧指向当前帧的, backward_warp(C1, V1<-0) => C0
+    # NRSRecord 录制的 motion 是前一帧指向当前帧的, backward_warp(C1, F1<-0) => C0
     warp_color0 = utils.backward_warp(
         color1_t,  # 3xHxW
         torch.from_numpy(motion1_np).permute(2, 0, 1)  # 2xHxW
