@@ -261,11 +261,14 @@ def main():
                         C1_0_gt = group2[0, 0:3, ...]
                         C2_0_gt = group2[0, 3:6, ...]
                         C2_0_pred = forward_warp(C1_0_gt, f_12_0[0, ...])
-                        writer.add_image(
-                            f"im_gt/{epoch:04d}_C2_0",
-                            C2_0_gt.detach().clamp(0.0, 1.0),
-                            epoch,
-                        )
+                        if epoch == 1:
+                            # Visualize GT only once
+                            writer.add_image(
+                                f"im_gt/C2_0",
+                                C2_0_gt.detach().clamp(0.0, 1.0),
+                                epoch,
+                            )
+                        # visualize prediction every epoch
                         writer.add_image(
                             f"im_pred/{epoch:04d}_C2_0",
                             C2_0_pred.detach().clamp(0.0, 1.0),
