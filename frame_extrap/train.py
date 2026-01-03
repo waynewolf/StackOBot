@@ -27,6 +27,7 @@ class TrainConfig:
     amp: bool
     seed: int
     val_split: float
+    force_restart: bool
 
 
 class CenterCropTransform:
@@ -66,6 +67,7 @@ def main():
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--val-split", type=float, default=0.1)
+    parser.add_argument("--force-restart", action="store_true", help="always start a new run")
     args = parser.parse_args()
 
     cfg = TrainConfig(
@@ -81,6 +83,7 @@ def main():
         amp=args.amp,
         seed=args.seed,
         val_split=args.val_split,
+        force_restart=args.force_restart,
     )
 
     set_seed(cfg.seed)
@@ -111,23 +114,23 @@ def main():
         checkpoints.sort()
         return os.path.join(ckpt_path, checkpoints[-1][1])
 
-    latest_run_name = _latest_run_name(cfg.output_dir)
+    latest_run_name = None
     resume_ckpt_path = None
-    if latest_run_name:
-        potential_run_dir = os.path.join(cfg.output_dir, latest_run_name)
-        potential_ckpt_dir = os.path.join(potential_run_dir, "checkpoints")
-        resume_ckpt_path = _latest_checkpoint_path(potential_ckpt_dir)
-        if resume_ckpt_path:
-            run_name = latest_run_name
-            run_dir = potential_run_dir
-            ckpt_dir = potential_ckpt_dir
-            log_dir = os.path.join(run_dir, "logs")
-        else:
-            run_name = None
-            resume_ckpt_path = None
-    else:
-        run_name = None
-        resume_ckpt_path = None
+    run_name = None
+
+    if not cfg.force_restart:
+        latest_run_name = _latest_run_name(cfg.output_dir)
+        if latest_run_name:
+            potential_run_dir = os.path.join(cfg.output_dir, latest_run_name)
+            potential_ckpt_dir = os.path.join(potential_run_dir, "checkpoints")
+            resume_ckpt_path = _latest_checkpoint_path(potential_ckpt_dir)
+            if resume_ckpt_path:
+                run_name = latest_run_name
+                run_dir = potential_run_dir
+                ckpt_dir = potential_ckpt_dir
+                log_dir = os.path.join(run_dir, "logs")
+            else:
+                resume_ckpt_path = None
 
     if run_name is None:
         run_name = datetime.now().strftime("run_%Y%m%d_%H%M%S")
