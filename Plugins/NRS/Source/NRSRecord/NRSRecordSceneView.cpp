@@ -40,6 +40,31 @@ NRSRecordSceneViewExtension::NRSRecordSceneViewExtension(const FAutoRegister& Au
 {
 }
 
+void NRSRecordSceneViewExtension::PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView)
+{
+	const bool bIsGameView = InView.bIsGameView || (InView.Family && InView.Family->EngineShowFlags.Game);
+	if (!bIsGameView)
+	{
+		return;
+	}
+
+	FViewInfo& View = (FViewInfo &)InView;
+	const FIntRect OldRect = View.ViewRect;
+
+	if (OldRect.Width() < DestViewSizeX || OldRect.Height() < DestViewSizeY)
+	{
+		UE_LOG(LogTemp, Log, TEXT("ViewRect is smaller than NRS destination size, not resizing."));
+		return;
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Resizing ViewRect from Min(%d, %d) Max(%d, %d) -> %d x %d"),
+		OldRect.Min.X, OldRect.Min.Y, OldRect.Max.X, OldRect.Max.Y, DestViewSizeX,  DestViewSizeY);
+
+	FIntRect NewRect(0, 0, NRSRecordSceneViewExtension::DestViewSizeX, NRSRecordSceneViewExtension::DestViewSizeY);
+	View.ViewRect = NewRect;
+    View.UnconstrainedViewRect = NewRect;
+}
+
 void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,

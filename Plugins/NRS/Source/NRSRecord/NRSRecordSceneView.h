@@ -31,6 +31,8 @@ class NRSRecordSceneViewExtension : public FSceneViewExtensionBase
 public:
 	explicit NRSRecordSceneViewExtension(const FAutoRegister& AutoRegister);
 
+	void PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override;
+
 	void PrePostProcessPass_RenderThread(
 		FRDGBuilder& GraphBuilder,
 		const FSceneView& InView,
