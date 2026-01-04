@@ -24,13 +24,13 @@ float2 ComputeStaticVelocity(float2 screenPos, float deviceZ01)
 float4 MainPS(FScreenVertexOutput In) : SV_Target0
 {
 	float2 velocity = 0;
-	float4 encodedVelocity = InputVelocityTexture.SampleLevel(InputVelocitySampler, In.UV, 0.0f);
-	if (encodedVelocity.x > 0.0 )
-	{
-		velocity = DecodeVelocityFromTexture(encodedVelocity).xy;
-	}
-	else
-	{
+	//float4 encodedVelocity = InputVelocityTexture.SampleLevel(InputVelocitySampler, In.UV, 0.0f);
+	//if (encodedVelocity.x > 0.0 )
+	//{
+	//	velocity = DecodeVelocityFromTexture(encodedVelocity).xy;
+	//}
+	//else
+	//{
 		// 已知 InputViewport 和 OutputViewRect 是相等的, 可用 dest UV 去采样 source, 
 		// 无论两者输入输出 RenderTarget 是否相同, 都可以这样做, UE 内部会转化.
 		float deviceZ01 = InputDepthTexture.SampleLevel(InputDepthSampler, In.UV, 0.0f).r;
@@ -39,7 +39,7 @@ float4 MainPS(FScreenVertexOutput In) : SV_Target0
 		float2 screenPos = ViewportUVToScreenPos(In.UV);
 
 		velocity = ComputeStaticVelocity(screenPos, deviceZ01).xy;
-	}
+	//}
 
     // UE 的屏幕坐标, 左下角为(-1, -1), 右上角为(1, 1), 因此移动向上为则正,向下则为负.
 	// 而在 UV 空间计算或利用常见的 warp 操作, 一般向下移动为正, 需将 Y 翻转.
