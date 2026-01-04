@@ -114,7 +114,7 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 			TexCreate_UAV | TexCreate_ShaderResource | TexCreate_RenderTargetable),
 		TEXT("NRSRecord_CameraMotion"));
 
-	DrawDestCameraMotionTexture(GraphBuilder, InView, SceneDepthTexture, DestMotionTexture);
+	DrawDestCameraMotionTexture(GraphBuilder, InView, SceneDepthTexture, VelocityTexture, DestMotionTexture);
 
 	if (CVarNRSRecord.GetValueOnAnyThread() != 0)
 	{
@@ -300,6 +300,7 @@ void NRSRecordSceneViewExtension::DrawDestCameraMotionTexture(
 	FRDGBuilder& GraphBuilder,
 	const FSceneView& InView,
 	FRDGTextureRef SceneDepthTexture,
+	FRDGTextureRef VelocityTexture,
 	FRDGTextureRef DestMotionTexture)
 {
 	if (SceneDepthTexture == nullptr || DestMotionTexture == nullptr)
@@ -320,6 +321,9 @@ void NRSRecordSceneViewExtension::DrawDestCameraMotionTexture(
 	NRSCameraMotionPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCameraMotionPS::FParameters>();
 	PassParameters->InputDepthTexture = SceneDepthTexture;
 	PassParameters->InputDepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PassParameters->InputVelocityTexture = VelocityTexture;
+	PassParameters->InputVelocitySampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
 	PassParameters->View = View.ViewUniformBuffer;
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestMotionTexture, ERenderTargetLoadAction::ENoAction);
 

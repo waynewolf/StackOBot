@@ -34,6 +34,8 @@ public:
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputDepthTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InputDepthSampler)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputVelocityTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, InputVelocitySampler)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
