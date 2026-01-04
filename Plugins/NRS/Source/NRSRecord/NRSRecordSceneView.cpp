@@ -242,30 +242,15 @@ void NRSRecordSceneViewExtension::DrawDestColorTexture(
 
 	const FScreenPassTexture OutputTexture(DestTexture);
 	const FScreenPassTextureViewport OutputViewport(OutputTexture);
+
+	// 注意, SourceTexture 的 RenderTarget 尺寸和 Viewport 尺寸不一致, 传一个 ViewRect 进去,
+	// 否则会以 RenderTarget 尺寸来计算 UV, 导致采样错误
 	const FScreenPassTexture InputScreenPass(SourceTexture, View.ViewRect);
 	const FScreenPassTextureViewport InputViewport(InputScreenPass);
 
-	const FVector2f InputViewMin(
-		static_cast<float>(InputViewport.Rect.Min.X),
-		static_cast<float>(InputViewport.Rect.Min.Y));
-	const FVector2f SourceViewSizeF(
-		static_cast<float>(InputViewport.Rect.Width()),
-		static_cast<float>(InputViewport.Rect.Height()));
-	const FVector2f DestViewSizeF(
-		static_cast<float>(DestViewSizeX),
-		static_cast<float>(DestViewSizeY));
-	const FIntPoint InputExtent = SourceTexture->Desc.Extent;
-	const FVector2f InvInputTextureSize(
-		InputExtent.X > 0 ? 1.0f / static_cast<float>(InputExtent.X) : 0.0f,
-		InputExtent.Y > 0 ? 1.0f / static_cast<float>(InputExtent.Y) : 0.0f);
-
 	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
 	PassParameters->InputTexture = SourceTexture;
-	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-	PassParameters->InputViewMin = InputViewMin;
-	PassParameters->SourceViewSize = SourceViewSizeF;
-	PassParameters->DestViewSize = DestViewSizeF;
-	PassParameters->InvInputTextureSize = InvInputTextureSize;
+	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
 
 	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
@@ -295,30 +280,15 @@ void NRSRecordSceneViewExtension::DrawDestDepthTexture(
 
 	const FScreenPassTexture OutputTexture(DestTexture);
 	const FScreenPassTextureViewport OutputViewport(OutputTexture);
+
+	// 注意, SourceTexture 的 RenderTarget 尺寸和 Viewport 尺寸不一致, 传一个 ViewRect 进去,
+	// 否则会以 RenderTarget 尺寸来计算 UV, 导致采样错误
 	const FScreenPassTexture InputScreenPass(SourceTexture, View.ViewRect);
 	const FScreenPassTextureViewport InputViewport(InputScreenPass);
 
-	const FVector2f InputViewMin(
-		static_cast<float>(InputViewport.Rect.Min.X),
-		static_cast<float>(InputViewport.Rect.Min.Y));
-	const FVector2f SourceViewSizeF(
-		static_cast<float>(InputViewport.Rect.Width()),
-		static_cast<float>(InputViewport.Rect.Height()));
-	const FVector2f DestViewSizeF(
-		static_cast<float>(DestViewSizeX),
-		static_cast<float>(DestViewSizeY));
-	const FIntPoint InputExtent = SourceTexture->Desc.Extent;
-	const FVector2f InvInputTextureSize(
-		InputExtent.X > 0 ? 1.0f / static_cast<float>(InputExtent.X) : 0.0f,
-		InputExtent.Y > 0 ? 1.0f / static_cast<float>(InputExtent.Y) : 0.0f);
-
 	NRSCopyColorPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCopyColorPS::FParameters>();
 	PassParameters->InputTexture = SourceTexture;
-	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-	PassParameters->InputViewMin = InputViewMin;
-	PassParameters->SourceViewSize = SourceViewSizeF;
-	PassParameters->DestViewSize = DestViewSizeF;
-	PassParameters->InvInputTextureSize = InvInputTextureSize;
+	PassParameters->InputTextureSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestTexture, ERenderTargetLoadAction::ENoAction);
 
 	TShaderMapRef<NRSCopyColorPS> PixelShader(View.ShaderMap);
