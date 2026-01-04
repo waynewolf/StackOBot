@@ -77,15 +77,8 @@ void NRSRecordSceneViewExtension::PrePostProcessPass_RenderThread(
 	}
 
 	const FViewInfo& View = (FViewInfo &)InView;
-	SourceViewSize = View.ViewRect.Size();
 
-	UE_LOG(LogTemp, Log, TEXT("Game ViewRect: %d x %d, Min: %d x %d"), SourceViewSize.X, SourceViewSize.Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
-
-	if (SourceViewSize.X < DestViewSizeX || SourceViewSize.Y < DestViewSizeY)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Source view size is smaller than destination size, skipping NRS recording."));
-		return;
-	}
+	UE_LOG(LogTemp, Log, TEXT("Game ViewRect: %d x %d, Min: %d x %d"), View.ViewRect.Size().X, View.ViewRect.Size().Y, View.ViewRect.Min.X, View.ViewRect.Min.Y);
 
 	NRSReadbackFrameId++;
 
@@ -318,25 +311,16 @@ void NRSRecordSceneViewExtension::DrawDestCameraMotionTexture(
 
 	const FScreenPassTexture OutputTexture(DestMotionTexture);
 	const FScreenPassTextureViewport OutputViewport(OutputTexture);
-	const FScreenPassTexture InputDepth(SceneDepthTexture);
-	const FScreenPassTextureViewport InputViewport(InputDepth);
 
-	const FIntPoint DepthExtent = SceneDepthTexture->Desc.Extent;
-	const float SafeSourceWidth = SourceViewSize.X > 0 ? static_cast<float>(SourceViewSize.X) : 1.0f;
-	const float SafeSourceHeight = SourceViewSize.Y > 0 ? static_cast<float>(SourceViewSize.Y) : 1.0f;
-	const float SafeDestWidth = DestViewSizeX > 0 ? static_cast<float>(DestViewSizeX) : 1.0f;
-	const float SafeDestHeight = DestViewSizeY > 0 ? static_cast<float>(DestViewSizeY) : 1.0f;
+	// 注意, SceneDepthTexture 的 RenderTarget 尺寸和 Viewport 尺寸不一致, 传一个 ViewRect 进去,
+	// 否则会以 RenderTarget 尺寸来计算 UV, 导致采样错误
+	const FScreenPassTexture InputDepth(SceneDepthTexture, View.ViewRect);
+	const FScreenPassTextureViewport InputViewport(InputDepth);
 
 	NRSCameraMotionPS::FParameters* PassParameters = GraphBuilder.AllocParameters<NRSCameraMotionPS::FParameters>();
 	PassParameters->InputDepthTexture = SceneDepthTexture;
 	PassParameters->InputDepthSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	PassParameters->View = View.ViewUniformBuffer;
-	PassParameters->InputViewMin = FVector2f(static_cast<float>(View.ViewRect.Min.X), static_cast<float>(View.ViewRect.Min.Y));
-	PassParameters->SourceViewSize = FVector2f(static_cast<float>(SourceViewSize.X), static_cast<float>(SourceViewSize.Y));
-	PassParameters->InvSourceViewSize = FVector2f(1.0f / SafeSourceWidth, 1.0f / SafeSourceHeight);
-	PassParameters->DestViewSize = FVector2f(static_cast<float>(DestViewSizeX), static_cast<float>(DestViewSizeY));
-	PassParameters->SourceToDestScale = FVector2f(SafeDestWidth / SafeSourceWidth, SafeDestHeight / SafeSourceHeight);
-	PassParameters->InputTextureSize = FVector2f(static_cast<float>(DepthExtent.X), static_cast<float>(DepthExtent.Y));
 	PassParameters->RenderTargets[0] = FRenderTargetBinding(DestMotionTexture, ERenderTargetLoadAction::ENoAction);
 
 	TShaderMapRef<NRSCameraMotionPS> PixelShader(View.ShaderMap);

@@ -74,7 +74,6 @@ private:
 	NRSReadbackState SceneDepthReadback;
 	NRSReadbackState CameraMotionReadback;
 
-	FIntPoint SourceViewSize;
 	static int DestViewSizeX;
 	static int DestViewSizeY;
 };

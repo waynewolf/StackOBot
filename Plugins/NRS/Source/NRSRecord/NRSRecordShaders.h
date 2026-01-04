@@ -35,12 +35,6 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputDepthTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, InputDepthSampler)
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER(FVector2f, InputViewMin)
-		SHADER_PARAMETER(FVector2f, SourceViewSize)
-		SHADER_PARAMETER(FVector2f, InvSourceViewSize)
-		SHADER_PARAMETER(FVector2f, DestViewSize)
-		SHADER_PARAMETER(FVector2f, SourceToDestScale)
-		SHADER_PARAMETER(FVector2f, InputTextureSize)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
 

@@ -4,60 +4,34 @@
 Texture2D InputDepthTexture;
 SamplerState InputDepthSampler;
 
-float2 InputViewMin;
-float2 SourceViewSize;
-float2 InvSourceViewSize;
-float2 DestViewSize;
-float2 SourceToDestScale;
-float2 InputTextureSize;
-
-static const float2 Epsilon2 = float2(1e-6f, 1e-6f);
-
-float2 ConvertDestUVToSourcePixel(float2 DestUV)
+float2 ComputeStaticVelocity(float2 screenPos, float deviceZ01)
 {
-	float2 safeDestSize = max(DestViewSize, float2(1.0f, 1.0f));
-	float2 safeSourceSize = max(SourceViewSize, float2(1.0f, 1.0f));
-	float2 destPixel = saturate(DestUV) * safeDestSize;
-	return destPixel * (safeSourceSize / safeDestSize);
-}
+	float3 posN = float3(screenPos, deviceZ01);
+	float4 thisClip = float4(posN, 1);
 
-float2 ConvertVelocityToDestScreen(float2 VelocityNDC)
-{
-	float2 safeDestSize = max(DestViewSize, float2(1.0f, 1.0f));
-	float2 velocityPixelsSource = VelocityNDC * SourceViewSize * 0.5f;
-	float2 velocityPixelsDest = velocityPixelsSource * SourceToDestScale;
-	return velocityPixelsDest * (2.0f / safeDestSize);
+	// 依赖 C++ 侧传入 View.ViewUniformBuffer
+	float4 prevClip = mul(thisClip, View.ClipToPrevClip); 
+	float2 prevScreen = prevClip.xy / prevClip.w;
+
+	// 历史帧指向当前帧, 方向不同于 TAA 常用的移动矢量.
+	// 因为 screenPos 范围 [-1, 1], 所以输出范围 [-2, 2]
+	return posN.xy - prevScreen;
 }
 
 // 数据集故意不加 object motion, 所以未采样 SceneVelocity
 float4 MainPS(FScreenVertexOutput In) : SV_Target0
 {
-	float2 sourcePixel = ConvertDestUVToSourcePixel(In.UV);
-	float2 texturePixel = sourcePixel + InputViewMin;
-	float2 safeTextureSize = max(InputTextureSize, float2(1.0f, 1.0f));
-	float2 sourceUV = texturePixel / safeTextureSize;
-	sourceUV = clamp(sourceUV, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
-	float deviceZ01 = InputDepthTexture.SampleLevel(InputDepthSampler, sourceUV, 0.0f).r;
+	// 已知 InputViewport 和 OutputViewRect 是相等的, 可用 dest UV 去采样 source, 
+	// 无论两者输入输出 RenderTarget 是否相同, 都可以这样做, UE 内部会转化.
+	float deviceZ01 = InputDepthTexture.SampleLevel(InputDepthSampler, In.UV, 0.0f).r;
 
-    // 把 source 像素位置转化成 viewport 归一化坐标
-	float2 viewportUV = sourcePixel * InvSourceViewSize;
+    // [0, 1] -> screenPos [-1, 1], UE 的 screen pos 其实指的是 NDC xy
+	float2 screenPos = ViewportUVToScreenPos(In.UV);
 
-    // viewportUV [0, 1] -> screenPos [-1, 1], UE 的 screen pos 其实指的是 x, y 的 NDC
-	float2 screenPos = ViewportUVToScreenPos(viewportUV);
-
-	float4 prevClip = mul(float4(screenPos, deviceZ01, 1.0f), View.ClipToPrevClip);
-	float denom = max(prevClip.w, 1e-6f);
-	float2 prevScreen = prevClip.xy / denom;
-
-    // 历史帧指向当前帧, 方向不同于 TAA 常用的移动矢量, 范围 [-2, 2]
-	float2 velocityNDC = screenPos - prevScreen;
-
-    // 以上计算以 source view 为基准, 因为外部只能传入以此为基准的 View.ViewUniformBuffer,
-    // 这里把 velocity 转换成以 dest view 为基准, 范围 [-2, 2]
-	float2 velocityDest = ConvertVelocityToDestScreen(velocityNDC);
+	float velocity = ComputeStaticVelocity(screenPos, deviceZ01).xy;
 
     // UE 的屏幕坐标, 左下角为(-1, -1), 右上角为(1, 1), 因此移动向上为则正,向下则为负.
 	// 而在 UV 空间计算或利用常见的 warp 操作, 一般向下移动为正, 需将 Y 翻转.
     // 这里把 [-2, 2] -> [-1, 1] 以及 Y 翻转合并, 注意移动矢量是历史帧指向当前帧
-	return float4(velocityDest * float2(0.5f, -0.5f), 0.0f, 0.0f);
+	return float4(velocity * float2(0.5f, -0.5f), 0.0f, 0.0f);
 }
