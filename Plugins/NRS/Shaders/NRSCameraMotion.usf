@@ -56,7 +56,8 @@ float4 MainPS(FScreenVertexOutput In) : SV_Target0
     // 这里把 velocity 转换成以 dest view 为基准, 范围 [-2, 2]
 	float2 velocityDest = ConvertVelocityToDestScreen(velocityNDC);
 
-    // UE 的屏幕坐标, 左下角为(-1, -1), 右上角为(1, 1), 因此移动向上为则正,向下则为负, HLSL 利用UV采样时需要翻转.
-    // [-2, 2] -> SNORM [-1, 1]
-	return float4(velocityDest * 0.5f, 0.0f, 0.0f);
+    // UE 的屏幕坐标, 左下角为(-1, -1), 右上角为(1, 1), 因此移动向上为则正,向下则为负.
+	// 而在 UV 空间计算或利用常见的 warp 操作, 一般向下移动为正, 需将 Y 翻转.
+    // 这里把 [-2, 2] -> [-1, 1] 以及 Y 翻转合并, 注意移动矢量是历史帧指向当前帧
+	return float4(velocityDest * float2(0.5f, -0.5f), 0.0f, 0.0f);
 }
