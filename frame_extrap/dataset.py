@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import Dataset
 
 from parser import (
+    read_r8g8b8a8_data,
     read_r11g11b10_data,
     read_r16g16b16a16_data,
     read_g16r16_data,
@@ -19,7 +20,7 @@ class UERecordDataset(Dataset):
     def __init__(
         self,
         root_dir: str,
-        color_format: str = "r16g16b16a16f",
+        color_format: str = "r8g8b8a8",
         depth_format: str = "r32f",
         motion_format: str = "g16r16f",
         transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
@@ -78,6 +79,8 @@ class UERecordDataset(Dataset):
         return sorted(samples)
 
     def _read_color(self, path: str, h: int, w: int) -> np.ndarray:
+        if self.color_format == "r8g8b8a8":
+            return read_r8g8b8a8_data(path, h, w)
         if self.color_format == "r11g11b10":
             return read_r11g11b10_data(path, h, w)
         if self.color_format == "r16g16b16a16f":
@@ -219,7 +222,7 @@ def _self_test() -> None:
 
     parser = argparse.ArgumentParser(description="UERecordDataset self-test")
     parser.add_argument("--root-dir", default="../train_data", help="dataset root")
-    parser.add_argument("--color-format", default="r16g16b16a16f", help="r16g16b16a16f|r11g11b10")
+    parser.add_argument("--color-format", default="r8g8b8a8", help="r16g16b16a16f|r11g11b10|r8g8b8a8")
     parser.add_argument("--depth-format", default="r32f")
     parser.add_argument("--motion-format", default="g16r16f")
     parser.add_argument("--index", type=int, default=0)
@@ -231,6 +234,7 @@ def _self_test() -> None:
         depth_format=args.depth_format,
         motion_format=args.motion_format,
     )
+
     print(f"samples={len(ds)}")
     if len(ds) == 0:
         return
@@ -250,6 +254,6 @@ def _self_test() -> None:
 
     _visualize(color0, depth0, flow0, color1, depth1, flow1, color2)
 
-# python frame_extrap/dataset.py --root-dir frame_extrap/train_data --color-format r16g16b16a16f --depth-format r32f --motion-format g16r16f --index 7657
+# python frame_extrap/dataset.py --root-dir frame_extrap/train_data --color-format r8g8b8a8 --depth-format r32f --motion-format g16r16f --index 50
 if __name__ == "__main__":
     _self_test()
