@@ -1,6 +1,6 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
   <diagram id="UD3pFmDAZtLvrDd9vvfq" name="Page-1">
-    <mxGraphModel dx="1152" dy="790" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
+    <mxGraphModel dx="1701" dy="996" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="1" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -275,19 +275,19 @@
         <mxCell id="9mG2g7NSf3YQd2OI7mK8-332" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="98" target="167" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="98" value="$$F_{1 \rightarrow 2}^4$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+        <mxCell id="98" value="$$\hat{F}_{1 \rightarrow 2}^4$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="567" y="568" width="80" height="25" as="geometry" />
         </mxCell>
         <mxCell id="9mG2g7NSf3YQd2OI7mK8-329" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="107" target="166" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="107" value="$$F_{1 \rightarrow 2}^3$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+        <mxCell id="107" value="$$\hat{F}_{1 \rightarrow 2}^3$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="559.5" y="457" width="95" height="30" as="geometry" />
         </mxCell>
         <mxCell id="9mG2g7NSf3YQd2OI7mK8-323" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="112" target="9mG2g7NSf3YQd2OI7mK8-322" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="112" value="$$F_{1 \rightarrow 2}^1$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+        <mxCell id="112" value="$$\hat{F}_{1 \rightarrow 2}^1$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="547" y="237" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="117" style="edgeStyle=orthogonalEdgeStyle;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;fontFamily=Helvetica;fontSize=12;fontColor=default;" parent="1" source="114" target="115" edge="1">
@@ -314,10 +314,10 @@
             <mxPoint x="-7" y="2" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="127" value="$$F_{1 \rightarrow 2}^0$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+        <mxCell id="127" value="$$\hat{F}_{1 \rightarrow 2}^0$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="542" y="125" width="130" height="40" as="geometry" />
         </mxCell>
-        <mxCell id="129" value="$$F_{1 \rightarrow 2}^0(Dist)$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;container=0;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
+        <mxCell id="129" value="$$F_{1 \rightarrow 2}^0$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;container=0;fillColor=#ffe6cc;strokeColor=#d79b00;" parent="1" vertex="1">
           <mxGeometry x="976" y="125" width="130" height="40" as="geometry" />
         </mxCell>
         <mxCell id="9mG2g7NSf3YQd2OI7mK8-319" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="130" target="146" edge="1">
@@ -398,7 +398,7 @@
         <mxCell id="183" value="$$\hat{C}_2^4$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;" parent="1" vertex="1">
           <mxGeometry x="697" y="627" width="80" height="25" as="geometry" />
         </mxCell>
-        <mxCell id="198" value="$$\mathcal{L}=\alpha \sum_{k=0}^4 \mathcal{L}_{motion}^k + \beta \sum_{k=0}^4 \mathcal{L}_{rec}^k$$" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
+        <mxCell id="198" value="$$\mathcal{L}=\alpha \sum_{k=0}^4 \mathcal{L}_{dist}^k + \beta \sum_{k=0}^4 \mathcal{L}_{rec}^k$$" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
           <mxGeometry x="319" y="800" width="258" height="70" as="geometry" />
         </mxCell>
         <mxCell id="9mG2g7NSf3YQd2OI7mK8-326" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="1" source="110" target="164" edge="1">
@@ -413,14 +413,14 @@
             <mxPoint x="-7" y="2" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="110" value="$$F_{1 \rightarrow 2}^2$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
+        <mxCell id="110" value="$$\hat{F}_{1 \rightarrow 2}^2$$" style="shape=parallelogram;perimeter=parallelogramPerimeter;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#d5e8d4;strokeColor=#82b366;" parent="1" vertex="1">
           <mxGeometry x="554.5" y="349" width="105" height="35" as="geometry" />
         </mxCell>
-        <mxCell id="203" value="C: Color Buffer, No UI&lt;div&gt;D: Depth Buffer, w/o transculency objects&lt;/div&gt;&lt;div&gt;V: Velocity w/o dynamic mesh&lt;/div&gt;&lt;div&gt;\(\phi\): internal feature representation&lt;/div&gt;&lt;div&gt;F: Flow&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
+        <mxCell id="203" value="C: Color Buffer, No UI&lt;div&gt;D: (Reverse) Depth, No transculency objs&lt;/div&gt;&lt;div&gt;V: Velocity, No dynamic mesh&lt;/div&gt;&lt;div&gt;\(\phi\): internal feature representation&lt;/div&gt;&lt;div&gt;F: Flow&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
           <mxGeometry x="44.75" y="750" width="248.5" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="206" value="$$\mathcal{L}_{motion}^k = \Vert F_{1 \rightarrow 2}^k \oplus V_{2 \leftarrow 1}^k) \Vert_2^2 $$ \(\oplus\) 是逐元素加法" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
-          <mxGeometry x="297" y="718" width="353" height="70" as="geometry" />
+        <mxCell id="206" value="$$\mathcal{L}_{dist}^k = \Vert \hat{F}_{1 \rightarrow 2}^k - F_{1 \rightarrow 2}^k) \Vert_2^2 $$" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
+          <mxGeometry x="264" y="740" width="353" height="48" as="geometry" />
         </mxCell>
         <mxCell id="226" value="352x448" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=none;" parent="1" vertex="1">
           <mxGeometry x="84" y="87" width="60" height="30" as="geometry" />
@@ -445,9 +445,6 @@
         </mxCell>
         <mxCell id="233" value="两组空间编码，一组混合解码，能否有效提取空间移动信息&lt;div&gt;能否有效获得动态网格体和半透明信息？&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;IFRNet论文提到：“&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212));&quot;&gt;Moreover, the gradually refined intermediate feature, containing&lt;/span&gt;&lt;/div&gt;&lt;div&gt;bilateral occlusion and global context information,&lt;/div&gt;&lt;div&gt;can finally generate fusion mask and compensate for motion&lt;/div&gt;&lt;div&gt;details, that are often missing by flow-based methods,&lt;/div&gt;&lt;div&gt;enabling IFRNet a powerful encoder-decoder VFI architecture&lt;/div&gt;&lt;div&gt;&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212));&quot;&gt;without additional refinement&lt;/span&gt;”&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;如果采信这个结论，上述网络的由粗到精解码器是可以获取遮挡等全局上下文信息的！&lt;/div&gt;" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
           <mxGeometry x="44.75" y="890" width="485.25" height="180" as="geometry" />
-        </mxCell>
-        <mxCell id="234" value="最小化移动损失倾向于使帧间运动方向和强度与历史保持一致&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;&lt;font style=&quot;color: rgb(204, 0, 0);&quot;&gt;下一步：网络再学一个动态网格体的Mask，修改移动损失，输出的是动态网格体的移动，而非整幅画面的移动&lt;/font&gt;&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=default;labelBackgroundColor=default;" parent="1" vertex="1">
-          <mxGeometry x="650" y="760" width="353" height="70" as="geometry" />
         </mxCell>
         <mxCell id="262" value="&lt;span style=&quot;color: rgb(0, 0, 0); background-color: rgb(255, 255, 255);&quot;&gt;$$\phi_0^k, \phi_1^k, \tilde{\phi}_2^k$$&lt;/span&gt;" style="text;html=1;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;" parent="1" vertex="1">
           <mxGeometry x="983" y="1310" width="78" height="30" as="geometry" />
@@ -759,6 +756,9 @@
             </Array>
             <mxPoint as="offset" />
           </mxGeometry>
+        </mxCell>
+        <mxCell id="m_ugIUQX6fbza3c_ZhZq-301" value="下一步: 把 Mix Decoder 的输出改成 12 个通道,级联更多的编码器解码器." style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=#FF0000;labelBackgroundColor=default;" vertex="1" parent="1">
+          <mxGeometry x="647" y="750" width="213" height="40" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
