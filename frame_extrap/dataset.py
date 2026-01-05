@@ -17,6 +17,12 @@ from parser import (
 )
 
 class UERecordDataset(Dataset):
+    """
+    UERecordDataset output format
+        color: r8g8b8a8 raw data, output r32g32b32, N3HW, unorm
+        depth: r32f raw data, output r32f, N1HW, unorm, reverse z, 1 = near, 0 = far
+        motion: g16r16f raw data, output r32g32, N2HW, screen space, snorm
+    """
     def __init__(
         self,
         root_dir: str,
