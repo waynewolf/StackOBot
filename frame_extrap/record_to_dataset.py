@@ -71,7 +71,6 @@ def copy_triplet(
         return False
     dest_dir = os.path.join(
         out_dir,
-        "anime",
         f"{dest_frame_no:06d}",
         f"{render_target_h}x{render_target_w}",
         f"{viewport_h}x{viewport_w}",
@@ -91,7 +90,7 @@ def copy_triplet(
     return True
 
 
-def generate_dataset(record_dir: str, out_dir: str) -> None:
+def generate_dataset(record_dir: str, out_dir: str, clean: bool = False) -> None:
     records = parse_records(record_dir)
     if not records:
         print("no records found")
@@ -112,12 +111,33 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
         if all((frame_start + offset) in frame_set for offset in range(3))
     ]
 
+    # Manage sequence folder under out_dir: use 3-digit numeric folders (000, 001, ...)
+    if clean and os.path.exists(out_dir):
+        shutil.rmtree(out_dir)
+    os.makedirs(out_dir, exist_ok=True)
+
+    seq_nums: List[int] = []
+    for name in os.listdir(out_dir):
+        path = os.path.join(out_dir, name)
+        if os.path.isdir(path) and re.fullmatch(r"\d+", name):
+            try:
+                seq_nums.append(int(name))
+            except ValueError:
+                continue
+
+    next_seq = max(seq_nums) + 1 if seq_nums else 0
+    seq_name = f"{next_seq:03d}"
+    seq_root = os.path.join(out_dir, seq_name)
+    os.makedirs(seq_root, exist_ok=True)
+
+    print(f"using sequence folder: {seq_name}")
+
     copied = 0
     for dest_frame_no, frame_start in enumerate(valid_frame_starts):
         for viewport_h, viewport_w, render_target_h, render_target_w in combos:
             color_ok = copy_triplet(
                 index,
-                out_dir,
+                seq_root,
                 frame_start,
                 dest_frame_no,
                 viewport_h,
@@ -126,31 +146,35 @@ def generate_dataset(record_dir: str, out_dir: str) -> None:
                 render_target_w,
                 "SceneColor",
             )
-            depth_ok = copy_triplet(
-                index,
-                out_dir,
-                frame_start,
-                dest_frame_no,
-                viewport_h,
-                viewport_w,
-                render_target_h,
-                render_target_w,
-                "SceneDepth",
-            )
-            camera_motion_ok = copy_triplet(
-                index,
-                out_dir,
-                frame_start,
-                dest_frame_no,
-                viewport_h,
-                viewport_w,
-                render_target_h,
-                render_target_w,
-                "CameraMotion",
-            )
-            
-            if color_ok and depth_ok and camera_motion_ok:
-                copied += 1
+            if color_ok:
+                depth_ok = copy_triplet(
+                    index,
+                    seq_root,
+                    frame_start,
+                    dest_frame_no,
+                    viewport_h,
+                    viewport_w,
+                    render_target_h,
+                    render_target_w,
+                    "SceneDepth",
+                )
+
+                if depth_ok:
+                    camera_motion_ok = copy_triplet(
+                        index,
+                        seq_root,
+                        frame_start,
+                        dest_frame_no,
+                        viewport_h,
+                        viewport_w,
+                        render_target_h,
+                        render_target_w,
+                        "CameraMotion",
+                    )
+
+                    if camera_motion_ok:
+                        copied += 1
+
     print(f"done, copied triplets: {copied}")
 
 
@@ -158,20 +182,15 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Convert NRSRecord to train dataset")
     parser.add_argument("--record-dir", required=True, help="NRSRecord directory")
     parser.add_argument("--out-dir", default="train_data", help="output dataset root")
-    parser.add_argument("--force", action="store_true", help="remove existing out-dir")
+    parser.add_argument("--clean", action="store_true", help="remove existing out-dir")
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if os.path.exists(args.out_dir):
-        if not args.force:
-            print(f"warning: out-dir exists, pass --force to overwrite: {args.out_dir}")
-            return
-        shutil.rmtree(args.out_dir)
-    generate_dataset(args.record_dir, args.out_dir)
+    generate_dataset(args.record_dir, args.out_dir, args.clean)
 
 
-# python frame_extrap/record_to_dataset.py --record-dir Saved/NRSRecord --out-dir frame_extrap/train_data --force
+# python frame_extrap/record_to_dataset.py --record-dir Saved/NRSRecord --out-dir frame_extrap/train_data --clean
 if __name__ == "__main__":
     main()
